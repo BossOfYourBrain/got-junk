@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<!-- saved from url=(0040)file:///D:/Downloads/vi-fleet-board.html -->
-<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
+<html lang="en">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>VI Fleet Board</title>
-<link rel="preconnect" href="https://fonts.googleapis.com/">
-<link href="./index_files/css2" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --blue-deep:#0A2E5C;
@@ -15,6 +15,8 @@
     --green-soft:#E4F5E8;
     --amber:#C4740F;
     --amber-soft:#FBEEDD;
+    --red:#C0392B;
+    --red-soft:#FBEAEA;
     --bg:#F3F5F8;
     --card:#FFFFFF;
     --ink:#132038;
@@ -46,10 +48,10 @@
     width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.14);
     border:none;color:#fff;font-size:16px;cursor:pointer;flex-shrink:0;
   }
-  .stat-strip{display:flex;gap:8px;margin-top:14px;}
-  .stat{flex:1;background:rgba(255,255,255,.12);border-radius:12px;padding:9px 10px;}
-  .stat .n{font-family:'Archivo Black',sans-serif;font-size:20px;line-height:1;}
-  .stat .l{font-size:10.5px;opacity:.85;margin-top:3px;font-weight:600;letter-spacing:.02em;}
+  .stat-strip{display:flex;gap:6px;margin-top:14px;}
+  .stat{flex:1;background:rgba(255,255,255,.12);border-radius:12px;padding:8px 6px;text-align:center;}
+  .stat .n{font-family:'Archivo Black',sans-serif;font-size:18px;line-height:1;}
+  .stat .l{font-size:9.5px;opacity:.85;margin-top:3px;font-weight:600;letter-spacing:.01em;}
 
   .tabs{display:flex;gap:6px;padding:12px 14px 0;position:sticky;top:96px;z-index:19;background:var(--bg);}
   .tab-btn{
@@ -190,6 +192,107 @@
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
   .loading{padding:60px 0;text-align:center;color:var(--ink-soft);font-size:14px;}
+
+  /* Problem reporting */
+  .btn-problem{background:#fff;color:var(--ink-soft);border:1.5px solid var(--line);flex:none;padding:9px 12px;}
+  .problem-alert{
+    display:flex;align-items:center;gap:9px;background:var(--red-soft);border:1px solid #F3CFCB;
+    border-radius:10px;padding:9px 11px;margin:0 0 12px;cursor:pointer;width:100%;text-align:left;
+  }
+  .problem-alert .picon{font-size:15px;flex-shrink:0;}
+  .problem-alert .ptext{font-size:12.5px;font-weight:700;color:var(--red);flex:1;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .problem-alert .parrow{font-size:12px;color:var(--red);flex-shrink:0;opacity:.7;}
+  .top-actions{display:flex;justify-content:flex-end;margin:-4px 0 6px;}
+
+  .problem-view{background:var(--red-soft);border:1px solid #F3CFCB;border-radius:12px;padding:14px;margin-bottom:14px;}
+  .problem-view .ptxt{font-size:14.5px;font-weight:600;color:var(--ink);line-height:1.4;}
+  .problem-view .pmeta{font-size:11.5px;color:var(--ink-soft);margin-top:6px;}
+  textarea{
+    width:100%;padding:12px 13px;border-radius:10px;border:1.5px solid var(--line);
+    font-size:15px;font-family:'Inter',sans-serif;background:#FAFBFC;resize:vertical;min-height:80px;
+  }
+  textarea:focus{outline:none;border-color:var(--blue);background:#fff;}
+
+  /* Fullness + checklist pickers */
+  .fullness-row{display:flex;gap:6px;}
+  .fullness-pill{
+    flex:1;padding:11px 4px;border-radius:10px;border:1.5px solid var(--line);background:#fff;
+    font-size:12.5px;font-weight:700;color:var(--ink-soft);cursor:pointer;text-align:center;
+  }
+  .fullness-pill.selected{border-color:var(--blue);background:#EEF4FC;color:var(--blue);}
+  .checklist-grid{display:flex;flex-wrap:wrap;gap:8px;}
+  .checklist-item{
+    padding:9px 13px;border-radius:9px;border:1.5px solid var(--line);background:#fff;
+    font-size:13px;font-weight:600;cursor:pointer;color:var(--ink);
+  }
+  .checklist-item.selected{border-color:var(--green);background:var(--green-soft);color:var(--green);}
+
+  .photo-zone{
+    border:1.5px dashed var(--line);border-radius:12px;padding:16px;text-align:center;
+    background:#FAFBFC;cursor:pointer;
+  }
+  .photo-zone .hint{font-size:13px;color:var(--ink-soft);font-weight:600;}
+  .photo-zone .hint small{display:block;font-weight:400;font-size:11.5px;margin-top:2px;}
+  .photo-preview{width:100%;border-radius:10px;display:block;margin-top:10px;max-height:180px;object-fit:cover;}
+
+  /* Ops tab */
+  .ops-note{font-size:12.5px;color:var(--ink-soft);margin:0 4px 14px;line-height:1.4;}
+  .ops-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;}
+  .ops-card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .ops-card-head{display:flex;align-items:center;gap:8px;}
+  .ops-badge{
+    width:32px;height:32px;border-radius:8px;background:var(--blue-deep);color:#fff;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-family:'Archivo Black',sans-serif;font-size:14px;
+  }
+  .ops-truck-label{font-size:12.5px;font-weight:800;}
+  .ops-fullness{
+    align-self:flex-start;padding:3px 9px;border-radius:99px;font-size:10.5px;font-weight:800;
+    text-transform:uppercase;letter-spacing:.03em;
+  }
+  .ops-fullness.f-low{background:var(--green-soft);color:var(--green);}
+  .ops-fullness.f-mid{background:var(--amber-soft);color:var(--amber);}
+  .ops-fullness.f-high{background:var(--red-soft);color:var(--red);}
+  .ops-thumb{width:100%;height:90px;object-fit:cover;border-radius:8px;background:#EEF2F8;}
+  .ops-chips{display:flex;flex-wrap:wrap;gap:4px;}
+  .ops-chip{background:#EEF2F8;color:var(--blue-deep);font-size:10px;font-weight:700;padding:3px 7px;border-radius:6px;}
+  .ops-sub{font-size:10.5px;color:var(--ink-soft);}
+  .ops-empty{font-size:12px;color:var(--ink-soft);font-style:italic;padding:6px 0;}
+  .ops-problem-flag{font-size:11px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:4px;}
+
+  /* Equipment return confirmation */
+  .equip-return-row{
+    display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--line);
+    border-radius:10px;margin-bottom:8px;
+  }
+  .equip-return-row .ername{flex:1;font-size:13.5px;font-weight:600;}
+  .equip-return-choice{display:flex;gap:6px;}
+  .er-btn{
+    padding:8px 11px;border-radius:8px;border:1.5px solid var(--line);background:#fff;
+    font-size:12px;font-weight:700;cursor:pointer;color:var(--ink-soft);
+  }
+  .er-btn.returned.selected{background:var(--green-soft);border-color:var(--green);color:var(--green);}
+  .er-btn.missing.selected{background:var(--red-soft);border-color:var(--red);color:var(--red);}
+  .equip-return-row.unconfirmed{border-color:#F0C36B;background:#FFFBF2;}
+
+  .shop-item.missing .shop-icon{background:var(--red-soft);}
+  .pill.missing{background:var(--red-soft);color:var(--red);}
+  .missing-found-btn{
+    margin-left:auto;flex-shrink:0;padding:7px 11px;border-radius:8px;border:1.5px solid var(--green);
+    background:#fff;color:var(--green);font-size:11.5px;font-weight:700;cursor:pointer;
+  }
+  .ops-missing-summary{
+    background:var(--red-soft);border:1px solid #F3CFCB;border-radius:12px;padding:12px 14px;margin-bottom:16px;
+  }
+  .ops-missing-summary .oms-title{font-size:11px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+  .ops-missing-summary .oms-item{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px;}
+  .ops-missing-chip{
+    display:inline-block;background:var(--red-soft);color:var(--red);font-size:10px;font-weight:800;
+    padding:3px 7px;border-radius:6px;margin-top:2px;
+  }
 </style>
 </head>
 <body>
@@ -202,119 +305,33 @@
         <div class="top">1-800-GOT-JUNK</div>
         <div class="main">Vancouver Island Fleet Board</div>
       </div>
-      <button class="settings-btn" onclick="openManage()" title="Configure trucks &amp; equipment">⚙</button>
+      <button class="settings-btn" onclick="openManage()" title="Configure trucks & equipment">⚙</button>
     </div>
     <div class="stat-strip">
-      <div class="stat"><div class="n" id="statOut">0</div><div class="l">Trucks out</div></div>
-      <div class="stat"><div class="n" id="statAvail">6</div><div class="l">Trucks in shop</div></div>
-      <div class="stat"><div class="n" id="statEquip">12/12</div><div class="l">Tools available</div></div>
+      <div class="stat"><div class="n" id="statOut">–</div><div class="l">Trucks out</div></div>
+      <div class="stat"><div class="n" id="statAvail">–</div><div class="l">In shop</div></div>
+      <div class="stat"><div class="n" id="statEquip">–</div><div class="l">Tools avail</div></div>
+      <div class="stat"><div class="n" id="statProblems">–</div><div class="l">Open issues</div></div>
     </div>
   </header>
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="fleet">Fleet</button>
+    <button class="tab-btn" data-tab="ops">Ops</button>
     <button class="tab-btn" data-tab="shop">Shop Inventory</button>
     <button class="tab-btn" data-tab="log">Log</button>
   </div>
 
-  <main id="mainContent"><div class="section-label">In the shop — 6</div>
-  <div class="truck-card">
-    <div class="truck-top">
-      <div class="truck-badge avail">2</div>
-      <div class="truck-meta">
-        <div class="label">Truck 2</div>
-        <div class="crew empty">Parked at shop</div>
-      </div>
-      <span class="pill avail">Available</span>
-    </div>
-    <div class="truck-body">
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="openCheckout(2)">Check out Truck 2</button>
-      </div>
-    </div>
-  </div>
-  <div class="truck-card">
-    <div class="truck-top">
-      <div class="truck-badge avail">3</div>
-      <div class="truck-meta">
-        <div class="label">Truck 3</div>
-        <div class="crew empty">Parked at shop</div>
-      </div>
-      <span class="pill avail">Available</span>
-    </div>
-    <div class="truck-body">
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="openCheckout(3)">Check out Truck 3</button>
-      </div>
-    </div>
-  </div>
-  <div class="truck-card">
-    <div class="truck-top">
-      <div class="truck-badge avail">5</div>
-      <div class="truck-meta">
-        <div class="label">Truck 5</div>
-        <div class="crew empty">Parked at shop</div>
-      </div>
-      <span class="pill avail">Available</span>
-    </div>
-    <div class="truck-body">
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="openCheckout(5)">Check out Truck 5</button>
-      </div>
-    </div>
-  </div>
-  <div class="truck-card">
-    <div class="truck-top">
-      <div class="truck-badge avail">7</div>
-      <div class="truck-meta">
-        <div class="label">Truck 7</div>
-        <div class="crew empty">Parked at shop</div>
-      </div>
-      <span class="pill avail">Available</span>
-    </div>
-    <div class="truck-body">
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="openCheckout(7)">Check out Truck 7</button>
-      </div>
-    </div>
-  </div>
-  <div class="truck-card">
-    <div class="truck-top">
-      <div class="truck-badge avail">9</div>
-      <div class="truck-meta">
-        <div class="label">Truck 9</div>
-        <div class="crew empty">Parked at shop</div>
-      </div>
-      <span class="pill avail">Available</span>
-    </div>
-    <div class="truck-body">
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="openCheckout(9)">Check out Truck 9</button>
-      </div>
-    </div>
-  </div>
-  <div class="truck-card">
-    <div class="truck-top">
-      <div class="truck-badge avail">12</div>
-      <div class="truck-meta">
-        <div class="label">Truck 12</div>
-        <div class="crew empty">Parked at shop</div>
-      </div>
-      <span class="pill avail">Available</span>
-    </div>
-    <div class="truck-body">
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="openCheckout(12)">Check out Truck 12</button>
-      </div>
-    </div>
-  </div></main>
+  <main id="mainContent">
+    <div class="loading">Loading fleet board…</div>
+  </main>
 </div>
 
 <div class="overlay" id="checkoutOverlay">
   <div class="sheet">
     <div class="sheet-head">
       <div class="sheet-title" id="checkoutTitle">Check out Truck</div>
-      <button class="sheet-close" onclick="closeSheet(&#39;checkoutOverlay&#39;)">✕</button>
+      <button class="sheet-close" onclick="closeSheet('checkoutOverlay')">✕</button>
     </div>
     <div class="field">
       <label>Driver</label>
@@ -338,7 +355,7 @@
   <div class="sheet">
     <div class="sheet-head">
       <div class="sheet-title" id="addEquipTitle">Add equipment</div>
-      <button class="sheet-close" onclick="closeSheet(&#39;addEquipOverlay&#39;)">✕</button>
+      <button class="sheet-close" onclick="closeSheet('addEquipOverlay')">✕</button>
     </div>
     <div class="field">
       <label>Your name</label>
@@ -354,11 +371,57 @@
   </div>
 </div>
 
+<div class="overlay" id="problemOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-title" id="problemTitle">Report a Problem</div>
+      <button class="sheet-close" onclick="closeSheet('problemOverlay')">✕</button>
+    </div>
+    <div id="problemBody"></div>
+  </div>
+</div>
+
+<div class="overlay" id="checkInOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-title" id="checkInTitle">Check In Truck</div>
+      <button class="sheet-close" onclick="closeSheet('checkInOverlay')">✕</button>
+    </div>
+    <div class="field" id="equipReturnField" style="display:none;">
+      <label>Equipment on this truck</label>
+      <div id="equipReturnList"></div>
+    </div>
+    <div class="field" id="missingNotesField" style="display:none;">
+      <label>Missing equipment notes (optional)</label>
+      <textarea id="missingNotesInput" placeholder="e.g. Left circular saw at the Cedar St job, will grab tomorrow"></textarea>
+    </div>
+    <div class="field">
+      <label>How full is the truck?</label>
+      <div class="fullness-row" id="fullnessRow"></div>
+    </div>
+    <div class="field">
+      <label>What's in the load? (select all that apply)</label>
+      <div class="checklist-grid" id="checklistGrid"></div>
+    </div>
+    <div class="field">
+      <label>Photo of the junk (required)</label>
+      <div class="photo-zone" id="photoZone" onclick="document.getElementById('eodPhotoInput').click()">
+        <div class="hint" id="photoHint">Tap to take or upload a photo<small>Required for operations review</small></div>
+        <img class="photo-preview" id="photoPreview" style="display:none;">
+      </div>
+      <input type="file" id="eodPhotoInput" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoSelect(event)">
+    </div>
+    <div class="sheet-submit">
+      <button class="btn btn-primary" onclick="submitCheckIn()">Complete check-in</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="manageOverlay">
   <div class="sheet">
     <div class="sheet-head">
       <div class="sheet-title">Configure Fleet</div>
-      <button class="sheet-close" onclick="closeSheet(&#39;manageOverlay&#39;)">✕</button>
+      <button class="sheet-close" onclick="closeSheet('manageOverlay')">✕</button>
     </div>
 
     <div class="manage-section">
@@ -395,30 +458,44 @@ let checkoutTruckId = null;
 let addEquipTruckId = null;
 let selectedCheckoutEquip = new Set();
 let selectedAddEquip = new Set();
+let problemTruckId = null;
+let checkInTruckId = null;
+let selectedFullness = null;
+let selectedChecklist = new Set();
+let pendingEodPhoto = null;
+let selectedEquipStatus = new Map();
+
+const FULLNESS_LEVELS = ['Empty','1/4','1/2','3/4','Full'];
+const JUNK_CATEGORIES = ['Metal','Wood','Mattresses','Garbage','Paint/Hazard Waste','Electronics'];
+function fullnessBand(level){
+  if(level==='Empty' || level==='1/4') return 'f-low';
+  if(level==='Full') return 'f-high';
+  return 'f-mid';
+}
 
 function defaultState(){
   return {
     trucks: [
-      {id:2, status:'available', driver:null, passenger:null, checkedOutAt:null},
-      {id:3, status:'available', driver:null, passenger:null, checkedOutAt:null},
-      {id:5, status:'available', driver:null, passenger:null, checkedOutAt:null},
-      {id:7, status:'available', driver:null, passenger:null, checkedOutAt:null},
-      {id:9, status:'available', driver:null, passenger:null, checkedOutAt:null},
-      {id:12, status:'available', driver:null, passenger:null, checkedOutAt:null},
+      {id:2, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null},
+      {id:3, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null},
+      {id:5, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null},
+      {id:7, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null},
+      {id:9, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null},
+      {id:12, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null},
     ],
     equipment: [
-      {id:'saw1', name:'Sawzall #1', icon:'🔧', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null},
-      {id:'saw2', name:'Sawzall #2', icon:'🔧', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null},
-      {id:'circ1', name:'Circular Saw #1', icon:'🪚', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null},
-      {id:'impact1', name:'Impact Drill #1', icon:'🛠️', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null},
-      {id:'impact2', name:'Impact Drill #2', icon:'🛠️', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null},
-      {id:'vac1', name:'Shop Vac #1', icon:'🌀', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null},
-      {id:'dolly1', name:'Hand Truck #1', icon:'📦', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null},
-      {id:'dolly2', name:'Hand Truck #2', icon:'📦', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null},
-      {id:'straps1', name:'Furniture Straps', icon:'🪢', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null},
-      {id:'bag1', name:'Tool Bag 1', icon:'🎒', category:'bag', truckId:null, lastUser:null, lastAction:null, lastTs:null},
-      {id:'bag2', name:'Tool Bag 2', icon:'🎒', category:'bag', truckId:null, lastUser:null, lastAction:null, lastTs:null},
-      {id:'bag3', name:'Tool Bag 3', icon:'🎒', category:'bag', truckId:null, lastUser:null, lastAction:null, lastTs:null},
+      {id:'saw1', name:'Sawzall #1', icon:'🔧', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
+      {id:'saw2', name:'Sawzall #2', icon:'🔧', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
+      {id:'circ1', name:'Circular Saw #1', icon:'🪚', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
+      {id:'impact1', name:'Impact Drill #1', icon:'🛠️', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
+      {id:'impact2', name:'Impact Drill #2', icon:'🛠️', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
+      {id:'vac1', name:'Shop Vac #1', icon:'🌀', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
+      {id:'dolly1', name:'Hand Truck #1', icon:'📦', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
+      {id:'dolly2', name:'Hand Truck #2', icon:'📦', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
+      {id:'straps1', name:'Furniture Straps', icon:'🪢', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
+      {id:'bag1', name:'Tool Bag 1', icon:'🎒', category:'bag', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
+      {id:'bag2', name:'Tool Bag 2', icon:'🎒', category:'bag', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
+      {id:'bag3', name:'Tool Bag 3', icon:'🎒', category:'bag', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
     ],
     log: []
   };
@@ -430,6 +507,16 @@ function loadState(){
     if(raw){
       state = JSON.parse(raw);
       if(!state.log) state.log = [];
+      state.trucks.forEach(t=>{
+        if(t.problem===undefined) t.problem = null;
+        if(t.lastEod===undefined) t.lastEod = null;
+      });
+      state.equipment.forEach(e=>{
+        if(e.missing===undefined) e.missing = false;
+        if(e.missingSince===undefined) e.missingSince = null;
+        if(e.missingReportedBy===undefined) e.missingReportedBy = null;
+        if(e.missingNote===undefined) e.missingNote = null;
+      });
     } else {
       state = defaultState();
       saveState();
@@ -477,13 +564,17 @@ function render(){
   if(!state) return;
   const outCount = state.trucks.filter(t=>t.status==='out').length;
   const availCount = state.trucks.length - outCount;
-  const equipAvail = state.equipment.filter(e=>!e.truckId).length;
+  const equipAvail = state.equipment.filter(e=>!e.truckId && !e.missing).length;
+  const problemCount = state.trucks.filter(t=>t.problem).length;
+  const missingCount = state.equipment.filter(e=>e.missing).length;
   document.getElementById('statOut').textContent = outCount;
   document.getElementById('statAvail').textContent = availCount;
   document.getElementById('statEquip').textContent = equipAvail + '/' + state.equipment.length;
+  document.getElementById('statProblems').textContent = problemCount + missingCount;
 
   const main = document.getElementById('mainContent');
   if(activeTab === 'fleet') main.innerHTML = renderFleet();
+  else if(activeTab === 'ops') main.innerHTML = renderOps();
   else if(activeTab === 'shop') main.innerHTML = renderShop();
   else main.innerHTML = renderLog();
 }
@@ -511,6 +602,16 @@ function equipForTruck(truckId){
   return state.equipment.filter(e=>e.truckId===truckId);
 }
 
+function problemBlock(t){
+  if(t.problem){
+    const preview = t.problem.text.length>46 ? t.problem.text.slice(0,46)+'…' : t.problem.text;
+    return `<button class="problem-alert" onclick="openProblem(${t.id})">
+      <span class="picon">🚨</span><span class="ptext">${preview}</span><span class="parrow">View ›</span>
+    </button>`;
+  }
+  return `<div class="top-actions"><button class="btn btn-problem" onclick="openProblem(${t.id})">⚠️ Problem</button></div>`;
+}
+
 function truckCardOut(t){
   const items = equipForTruck(t.id);
   const chips = items.length
@@ -529,10 +630,11 @@ function truckCardOut(t){
     </div>
     <div class="truck-body">
       <div class="checked-time">Checked out at ${timeShort(t.checkedOutAt)}</div>
+      ${problemBlock(t)}
       ${chips}
       <div class="btn-row">
         <button class="btn btn-outline" onclick="openAddEquip(${t.id})">+ Add equipment</button>
-        <button class="btn btn-danger-outline" onclick="checkInTruck(${t.id})">Check in</button>
+        <button class="btn btn-danger-outline" onclick="openCheckIn(${t.id})">Check in</button>
       </div>
     </div>
   </div>`;
@@ -550,6 +652,7 @@ function truckCardAvailable(t){
       <span class="pill avail">Available</span>
     </div>
     <div class="truck-body">
+      ${problemBlock(t)}
       <div class="btn-row">
         <button class="btn btn-primary" onclick="openCheckout(${t.id})">Check out Truck ${t.id}</button>
       </div>
@@ -562,43 +665,56 @@ function renderShop(){
     if((a.truckId?1:0) !== (b.truckId?1:0)) return (a.truckId?1:0)-(b.truckId?1:0);
     return a.name.localeCompare(b.name);
   });
-  const availCount = state.equipment.filter(e=>!e.truckId).length;
+  const availCount = state.equipment.filter(e=>!e.truckId && !e.missing).length;
   if(state.equipment.length===0){
     return `<div class="empty-note">No equipment configured yet. Tap ⚙ in the header to add tools and bags.</div>`;
   }
-  let html = `<div class="section-label">Available at shop — ${availCount}</div>`;
-  const availItems = sorted.filter(e=>!e.truckId);
-  const outItems = sorted.filter(e=>e.truckId);
+  const missingItems = sorted.filter(e=>e.missing);
+  let html = '';
+  if(missingItems.length){
+    html += `<div class="section-label">Missing — ${missingItems.length}</div>`;
+    missingItems.forEach(e=>{ html += shopRow(e,'missing'); });
+  }
+  html += `<div class="section-label">Available at shop — ${availCount}</div>`;
+  const availItems = sorted.filter(e=>!e.truckId && !e.missing);
+  const outItems = sorted.filter(e=>e.truckId && !e.missing);
 
   if(availItems.length===0){
     html += `<div class="empty-note">Everything is out on trucks right now.</div>`;
   }
-  availItems.forEach(e=>{ html += shopRow(e,false); });
+  availItems.forEach(e=>{ html += shopRow(e,'available'); });
 
   if(outItems.length){
     html += `<div class="section-label">Out with trucks — ${outItems.length}</div>`;
-    outItems.forEach(e=>{ html += shopRow(e,true); });
+    outItems.forEach(e=>{ html += shopRow(e,'out'); });
   }
   return html;
 }
 
-function shopRow(e,isOut){
-  let sub;
-  if(isOut){
+function shopRow(e,kind){
+  let sub, pillLabel, pillClass;
+  if(kind==='missing'){
+    sub = `Missing since ${dateTimeShort(e.missingSince)}${e.missingReportedBy?' — reported by '+e.missingReportedBy:''}${e.missingNote?' — "'+escapeHtml(e.missingNote)+'"':''}`;
+    pillLabel = 'Missing'; pillClass = 'missing';
+  } else if(kind==='out'){
     sub = `On Truck ${e.truckId}` + (e.lastUser ? ` — taken by ${e.lastUser}` : '');
+    pillLabel = 'In use'; pillClass = 'out';
   } else {
     sub = e.lastUser ? `At the shop — last used by ${e.lastUser}` : 'At the shop';
+    pillLabel = 'Ready'; pillClass = 'avail';
   }
+  const foundBtn = kind==='missing' ? `<button class="missing-found-btn" onclick="resolveMissingItem('${e.id}')">Mark found</button>` : '';
   return `
-  <div class="shop-item ${isOut?'on-truck':''}">
+  <div class="shop-item ${kind==='out'?'on-truck':''} ${kind==='missing'?'missing':''}">
     <div class="shop-icon">${e.icon}</div>
     <div>
       <div class="shop-name">${e.name}</div>
       <div class="shop-sub">${sub}</div>
     </div>
     <div class="shop-status">
-      <span class="pill ${isOut?'out':'avail'}">${isOut?'In use':'Ready'}</span>
+      <span class="pill ${pillClass}">${pillLabel}</span>
     </div>
+    ${foundBtn}
   </div>`;
 }
 
@@ -620,6 +736,64 @@ function renderLog(){
   return html;
 }
 
+function renderOps(){
+  if(state.trucks.length===0){
+    return `<div class="empty-note">No trucks configured yet. Tap ⚙ in the header to add your fleet.</div>`;
+  }
+  const rank = {'Empty':0,'1/4':1,'1/2':2,'3/4':3,'Full':4};
+  const sorted = [...state.trucks].sort((a,b)=>{
+    const ra = a.lastEod ? rank[a.lastEod.fullness] : -1;
+    const rb = b.lastEod ? rank[b.lastEod.fullness] : -1;
+    return rb - ra;
+  });
+  let html = '';
+  const missingEquip = state.equipment.filter(e=>e.missing);
+  if(missingEquip.length){
+    html += `<div class="ops-missing-summary">
+      <div class="oms-title">Missing equipment — ${missingEquip.length}</div>
+      ${missingEquip.map(e=>`<div class="oms-item">${e.icon} ${e.name} <span class="ops-missing-chip">${e.missingReportedBy||'Unknown'} · ${dateTimeShort(e.missingSince)}</span></div>`).join('')}
+    </div>`;
+  }
+  html += `<div class="ops-note">Sorted fullest-first — those trucks need a dump run or consolidation before rolling out. Empty trucks near the bottom can head straight to the next job.</div>`;
+  html += `<div class="ops-grid">`;
+  sorted.forEach(t=>{ html += opsCard(t); });
+  html += `</div>`;
+  return html;
+}
+
+function opsCard(t){
+  const problemFlag = t.problem ? `<div class="ops-problem-flag">🚨 Problem reported</div>` : '';
+  if(!t.lastEod){
+    return `
+    <div class="ops-card">
+      <div class="ops-card-head">
+        <div class="ops-badge">${t.id}</div>
+        <div class="ops-truck-label">Truck ${t.id}</div>
+      </div>
+      ${problemFlag}
+      <div class="ops-empty">No end-of-day data yet${t.status==='out'?' — still out':''}</div>
+    </div>`;
+  }
+  const eod = t.lastEod;
+  const chips = eod.checklist.map(c=>`<span class="ops-chip">${c}</span>`).join('');
+  const photo = eod.photo ? `<img class="ops-thumb" src="${eod.photo}">` : '';
+  const missingFlag = (eod.missingItems && eod.missingItems.length)
+    ? `<div class="ops-problem-flag">🧰 Missing: ${eod.missingItems.join(', ')}</div>` : '';
+  return `
+  <div class="ops-card">
+    <div class="ops-card-head">
+      <div class="ops-badge">${t.id}</div>
+      <div class="ops-truck-label">Truck ${t.id}</div>
+    </div>
+    <span class="ops-fullness ${fullnessBand(eod.fullness)}">${eod.fullness}</span>
+    ${problemFlag}
+    ${missingFlag}
+    ${photo}
+    <div class="ops-chips">${chips}</div>
+    <div class="ops-sub">${eod.submittedBy||'Unknown'} · ${timeShort(eod.submittedAt)}</div>
+  </div>`;
+}
+
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -635,7 +809,7 @@ function openCheckout(truckId){
   document.getElementById('checkoutTitle').textContent = 'Check out Truck ' + truckId;
   document.getElementById('driverInput').value = '';
   document.getElementById('passengerInput').value = '';
-  const available = state.equipment.filter(e=>!e.truckId);
+  const available = state.equipment.filter(e=>!e.truckId && !e.missing);
   const picker = document.getElementById('checkoutEquipPicker');
   picker.innerHTML = available.length
     ? available.map(e=>equipOptionHtml(e,'checkout')).join('')
@@ -670,6 +844,7 @@ function submitCheckout(){
   truck.driver = driver;
   truck.passenger = passenger || null;
   truck.checkedOutAt = now;
+  truck.lastEod = null;
   const names = [];
   selectedCheckoutEquip.forEach(id=>{
     const item = state.equipment.find(e=>e.id===id);
@@ -693,7 +868,7 @@ function openAddEquip(truckId){
   selectedAddEquip = new Set();
   document.getElementById('addEquipTitle').textContent = 'Add equipment — Truck ' + truckId;
   document.getElementById('addedByInput').value = '';
-  const available = state.equipment.filter(e=>!e.truckId);
+  const available = state.equipment.filter(e=>!e.truckId && !e.missing);
   const picker = document.getElementById('addEquipPicker');
   picker.innerHTML = available.length
     ? available.map(e=>equipOptionHtml(e,'add')).join('')
@@ -726,28 +901,222 @@ function submitAddEquip(){
   showToast(`Equipment added to Truck ${addEquipTruckId}`);
 }
 
-function checkInTruck(truckId){
+/* Report a Problem */
+function openProblem(truckId){
+  problemTruckId = truckId;
   const truck = state.trucks.find(t=>t.id===truckId);
+  document.getElementById('problemTitle').textContent = (truck.problem ? 'Truck ' : 'Report a Problem — Truck ') + truckId;
+  const body = document.getElementById('problemBody');
+  if(truck.problem){
+    body.innerHTML = `
+      <div class="problem-view">
+        <div class="ptxt">${escapeHtml(truck.problem.text)}</div>
+        <div class="pmeta">Reported${truck.problem.reportedBy?' by '+escapeHtml(truck.problem.reportedBy):''} · ${dateTimeShort(truck.problem.reportedAt)}</div>
+      </div>
+      <div class="sheet-submit">
+        <button class="btn btn-primary" onclick="resolveProblem(${truckId})">Mark resolved</button>
+      </div>`;
+  } else {
+    body.innerHTML = `
+      <div class="field">
+        <label>What's wrong?</label>
+        <textarea id="problemTextInput" placeholder="e.g. Front driver's headlight is out"></textarea>
+      </div>
+      <div class="field">
+        <label>Your name (optional)</label>
+        <input type="text" id="problemNameInput" placeholder="e.g. Tom">
+      </div>
+      <div class="sheet-submit">
+        <button class="btn btn-primary" onclick="submitProblem()">Report problem</button>
+      </div>`;
+  }
+  document.getElementById('problemOverlay').classList.add('show');
+}
+
+function submitProblem(){
+  const text = document.getElementById('problemTextInput').value.trim();
+  if(!text){ showToast('Enter a description of the problem'); return; }
+  const name = document.getElementById('problemNameInput').value.trim();
+  const truck = state.trucks.find(t=>t.id===problemTruckId);
+  truck.problem = {text, reportedBy: name || null, reportedAt: new Date().toISOString()};
+  addLog('🚨', `Truck ${problemTruckId} problem reported${name?' by '+name:''}: ${text}`);
+  closeSheet('problemOverlay');
+  saveState();
+  render();
+  showToast(`Problem logged for Truck ${problemTruckId}`);
+}
+
+function resolveProblem(truckId){
+  const truck = state.trucks.find(t=>t.id===truckId);
+  const was = truck.problem ? truck.problem.text : '';
+  truck.problem = null;
+  addLog('✅', `Truck ${truckId} problem resolved${was?' (was: '+was+')':''}`);
+  closeSheet('problemOverlay');
+  saveState();
+  render();
+  showToast(`Truck ${truckId} problem cleared`);
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+/* Check In — end of day */
+function openCheckIn(truckId){
+  checkInTruckId = truckId;
+  selectedFullness = null;
+  selectedChecklist = new Set();
+  pendingEodPhoto = null;
+  selectedEquipStatus = new Map();
+  document.getElementById('checkInTitle').textContent = 'Check In Truck ' + truckId;
+
+  const items = equipForTruck(truckId);
+  const equipField = document.getElementById('equipReturnField');
+  const missingNotesField = document.getElementById('missingNotesField');
+  document.getElementById('missingNotesInput').value = '';
+  missingNotesField.style.display = 'none';
+  if(items.length){
+    equipField.style.display = 'block';
+    document.getElementById('equipReturnList').innerHTML = items.map(e=>`
+      <div class="equip-return-row unconfirmed" data-item="${e.id}">
+        <span class="ername">${e.icon} ${e.name}</span>
+        <div class="equip-return-choice">
+          <button type="button" class="er-btn returned" onclick="setEquipReturnStatus('${e.id}','returned')">Returned</button>
+          <button type="button" class="er-btn missing" onclick="setEquipReturnStatus('${e.id}','missing')">Missing</button>
+        </div>
+      </div>`).join('');
+  } else {
+    equipField.style.display = 'none';
+  }
+
+  document.getElementById('fullnessRow').innerHTML = FULLNESS_LEVELS.map(level=>
+    `<button type="button" class="fullness-pill" data-level="${level}" onclick="selectFullness('${level}')">${level}</button>`
+  ).join('');
+
+  document.getElementById('checklistGrid').innerHTML = JUNK_CATEGORIES.map(cat=>
+    `<button type="button" class="checklist-item" data-cat="${cat}" onclick="toggleChecklistItem('${cat}')">${cat}</button>`
+  ).join('');
+
+  document.getElementById('photoPreview').style.display = 'none';
+  document.getElementById('photoHint').style.display = 'block';
+  document.getElementById('eodPhotoInput').value = '';
+
+  document.getElementById('checkInOverlay').classList.add('show');
+}
+
+function setEquipReturnStatus(itemId, status){
+  selectedEquipStatus.set(itemId, status);
+  const row = document.querySelector(`.equip-return-row[data-item="${itemId}"]`);
+  if(row){
+    row.classList.remove('unconfirmed');
+    row.querySelector('.er-btn.returned').classList.toggle('selected', status==='returned');
+    row.querySelector('.er-btn.missing').classList.toggle('selected', status==='missing');
+  }
+  const anyMissing = Array.from(selectedEquipStatus.values()).some(v=>v==='missing');
+  document.getElementById('missingNotesField').style.display = anyMissing ? 'block' : 'none';
+}
+
+function selectFullness(level){
+  selectedFullness = level;
+  document.querySelectorAll('#fullnessRow .fullness-pill').forEach(el=>{
+    el.classList.toggle('selected', el.dataset.level===level);
+  });
+}
+
+function toggleChecklistItem(cat){
+  if(selectedChecklist.has(cat)) selectedChecklist.delete(cat); else selectedChecklist.add(cat);
+  const el = document.querySelector(`#checklistGrid .checklist-item[data-cat="${cat}"]`);
+  if(el) el.classList.toggle('selected');
+}
+
+function handlePhotoSelect(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const maxW = 800;
+      const scale = Math.min(1, maxW/img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width*scale;
+      canvas.height = img.height*scale;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      pendingEodPhoto = canvas.toDataURL('image/jpeg',0.7);
+      const preview = document.getElementById('photoPreview');
+      preview.src = pendingEodPhoto;
+      preview.style.display = 'block';
+      document.getElementById('photoHint').style.display = 'none';
+    };
+    img.src = e.target.result;
+  };
+  reader.onerror = ()=>{ showToast("Couldn't read that photo — try again"); };
+  reader.readAsDataURL(file);
+}
+
+function submitCheckIn(){
+  if(!selectedFullness){ showToast('Select how full the truck is'); return; }
+  if(!pendingEodPhoto){ showToast('A photo of the junk is required'); return; }
+
+  const truck = state.trucks.find(t=>t.id===checkInTruckId);
   const driverName = truck.driver;
   const now = new Date().toISOString();
+  const items = equipForTruck(checkInTruckId);
+
+  if(items.length && selectedEquipStatus.size < items.length){
+    showToast('Confirm each piece of equipment as Returned or Missing');
+    return;
+  }
+
+  const missingNote = document.getElementById('missingNotesInput').value.trim() || null;
   const returned = [];
-  state.equipment.forEach(e=>{
-    if(e.truckId===truckId){
-      e.truckId = null;
-      e.lastUser = driverName;
+  const missing = [];
+  items.forEach(e=>{
+    const status = selectedEquipStatus.get(e.id);
+    e.truckId = null;
+    e.lastUser = driverName;
+    e.lastTs = now;
+    if(status==='missing'){
+      e.missing = true;
+      e.missingSince = now;
+      e.missingReportedBy = driverName;
+      e.missingNote = missingNote;
+      e.lastAction = 'reported missing';
+      missing.push(e.name);
+    } else {
+      e.missing = false;
       e.lastAction = 'returned';
-      e.lastTs = now;
       returned.push(e.name);
     }
   });
+
+  truck.lastEod = {
+    fullness: selectedFullness,
+    checklist: Array.from(selectedChecklist),
+    photo: pendingEodPhoto,
+    submittedBy: driverName,
+    submittedAt: now,
+    missingItems: missing
+  };
   truck.status = 'available';
   truck.driver = null;
   truck.passenger = null;
   truck.checkedOutAt = null;
-  addLog('✅', `Truck ${truckId} checked in by ${driverName}${returned.length? ' — returned '+returned.join(', '):''}`);
+
+  let logMsg = `Truck ${checkInTruckId} checked in by ${driverName} — ${selectedFullness} full`;
+  if(returned.length) logMsg += ` — returned ${returned.join(', ')}`;
+  if(missing.length) logMsg += ` — missing ${missing.join(', ')}${missingNote?' ("'+missingNote+'")':''}`;
+  addLog(missing.length ? '⚠️' : '✅', logMsg);
+
+  closeSheet('checkInOverlay');
   saveState();
   render();
-  showToast(`Truck ${truckId} checked in — thanks${driverName?', '+driverName:''}!`);
+  showToast(missing.length
+    ? `Truck ${checkInTruckId} checked in — ${missing.length} item(s) flagged missing`
+    : `Truck ${checkInTruckId} checked in — thanks${driverName?', '+driverName:''}!`);
 }
 
 function closeSheet(id){
@@ -779,9 +1148,9 @@ function renderManage(){
     <div class="manage-row">
       <div>
         <div class="mname">${e.icon} ${e.name}</div>
-        <div class="msub">${e.truckId ? 'On Truck '+e.truckId+' — return before removing' : 'At the shop'}</div>
+        <div class="msub">${e.missing ? 'Reported missing — resolve first' : (e.truckId ? 'On Truck '+e.truckId+' — return before removing' : 'At the shop')}</div>
       </div>
-      <button class="remove-btn" ${e.truckId?'disabled':''} onclick="removeEquipmentItem('${e.id}')" title="Remove">✕</button>
+      <button class="remove-btn" ${(e.truckId||e.missing)?'disabled':''} onclick="removeEquipmentItem('${e.id}')" title="Remove">✕</button>
     </div>
   `).join('') : `<div class="empty-note">No equipment yet.</div>`;
 }
@@ -791,7 +1160,7 @@ function addTruck(){
   const num = parseInt(input.value, 10);
   if(!num || num<=0){ showToast('Enter a valid truck number'); return; }
   if(state.trucks.some(t=>t.id===num)){ showToast(`Truck ${num} already exists`); return; }
-  state.trucks.push({id:num, status:'available', driver:null, passenger:null, checkedOutAt:null});
+  state.trucks.push({id:num, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null});
   addLog('🛠️', `Truck ${num} added to the fleet`);
   input.value = '';
   saveState();
@@ -819,7 +1188,7 @@ function addEquipmentItem(){
   const category = catSelect.value;
   const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-') + '-' + Date.now().toString(36);
   const icon = category==='bag' ? '🎒' : '🧰';
-  state.equipment.push({id, name, icon, category, truckId:null, lastUser:null, lastAction:null, lastTs:null});
+  state.equipment.push({id, name, icon, category, truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null});
   addLog('🛠️', `${name} added to shop inventory`);
   nameInput.value = '';
   saveState();
@@ -830,13 +1199,26 @@ function addEquipmentItem(){
 
 function removeEquipmentItem(id){
   const item = state.equipment.find(e=>e.id===id);
-  if(!item || item.truckId){ showToast('Return the item to the shop before removing it'); return; }
+  if(!item || item.truckId || item.missing){ showToast('Resolve the item (return it or mark found) before removing it'); return; }
   state.equipment = state.equipment.filter(e=>e.id!==id);
   addLog('🗑️', `${item.name} removed from shop inventory`);
   saveState();
   renderManage();
   render();
   showToast(`${item.name} removed`);
+}
+
+function resolveMissingItem(id){
+  const item = state.equipment.find(e=>e.id===id);
+  if(!item) return;
+  item.missing = false;
+  item.missingSince = null;
+  item.missingReportedBy = null;
+  item.missingNote = null;
+  addLog('✅', `${item.name} found and returned to shop inventory`);
+  saveState();
+  render();
+  showToast(`${item.name} marked as found`);
 }
 
 /* Keep multiple tabs in the same browser in sync (e.g. two windows open side by side) */
@@ -852,6 +1234,5 @@ window.addEventListener('storage', (e)=>{
 
 loadState();
 </script>
-
-
-</body></html>
+</body>
+</html>
