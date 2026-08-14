@@ -1015,7 +1015,7 @@ function opsCard(t){
     ${missingFlag}
     ${photo}
     <div class="ops-chips">${chips}</div>
-    <div class="ops-sub">${eod.submittedBy||'Unknown'} · ${timeShort(eod.submittedAt)}</div>
+    <div class="ops-sub">${eod.passenger ? eod.submittedBy+' / '+eod.passenger : (eod.submittedBy||'Unknown')} · ${timeShort(eod.submittedAt)}</div>
     ${editedNote}
     <button class="ops-edit-btn" onclick="openEodEdit(${t.id})">✏️ Edit</button>
   </div>`;
@@ -1298,6 +1298,7 @@ function submitCheckIn(){
   }
 
   const driverName = truck.driver;
+  const passengerName = truck.passenger;
   const now = new Date().toISOString();
   const items = equipForTruck(checkInTruckId);
 
@@ -1336,6 +1337,7 @@ function submitCheckIn(){
     checklist: Array.from(selectedChecklist),
     photo: pendingEodPhoto,
     submittedBy: driverName,
+    passenger: passengerName || null,
     submittedAt: now,
     missingItems: missing,
     equipmentManifest: manifest,
