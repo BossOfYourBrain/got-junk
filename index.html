@@ -49,6 +49,19 @@
     width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.14);
     border:none;color:#fff;font-size:16px;cursor:pointer;flex-shrink:0;
   }
+  .header-menu-wrap{position:relative;flex-shrink:0;}
+  .header-menu{
+    position:absolute;top:44px;right:0;background:#fff;border-radius:12px;
+    box-shadow:0 10px 28px rgba(10,46,92,.22);border:1px solid var(--line);
+    min-width:190px;padding:6px;display:none;z-index:30;
+  }
+  .header-menu.show{display:block;}
+  .header-menu-item{
+    display:flex;align-items:center;gap:9px;width:100%;padding:11px 12px;border:none;background:none;
+    border-radius:8px;font-size:13.5px;font-weight:700;color:var(--ink);cursor:pointer;text-align:left;
+    font-family:'Inter',sans-serif;
+  }
+  .header-menu-item:active{background:#F0F2F6;}
   .stat-strip{display:flex;gap:6px;margin-top:14px;}
   .stat{flex:1;background:rgba(255,255,255,.12);border-radius:12px;padding:8px 6px;text-align:center;}
   .stat .n{font-family:'Archivo Black',sans-serif;font-size:18px;line-height:1;}
@@ -263,6 +276,11 @@
   .ops-sub{font-size:10.5px;color:var(--ink-soft);}
   .ops-empty{font-size:12px;color:var(--ink-soft);font-style:italic;padding:6px 0;}
   .ops-problem-flag{font-size:11px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:4px;}
+  .ops-edit-btn{
+    margin-top:4px;width:100%;padding:8px;border-radius:8px;border:1.5px solid var(--blue);
+    background:#fff;color:var(--blue);font-size:11.5px;font-weight:700;cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
 
   /* Equipment return confirmation */
   .equip-return-row{
@@ -413,8 +431,14 @@
         <div class="top">1-800-GOT-JUNK</div>
         <div class="main" id="locationTitle">Fleet Board</div>
       </div>
-      <button class="settings-btn" onclick="switchLocation()" title="Switch location">↔</button>
-      <button class="settings-btn" onclick="openManage()" title="Configure trucks & equipment">⚙</button>
+      <div class="header-menu-wrap" id="headerMenuWrap">
+        <button class="settings-btn" onclick="toggleHeaderMenu()" title="More options">▾</button>
+        <div class="header-menu" id="headerMenu">
+          <button class="header-menu-item" onclick="headerMenuAction('configure')">⚙ Configure Fleet</button>
+          <button class="header-menu-item" onclick="headerMenuAction('switch')">↔ Switch Location</button>
+          <button class="header-menu-item" onclick="headerMenuAction('log')">🧾 Log</button>
+        </div>
+      </div>
     </div>
     <div class="stat-strip">
       <div class="stat"><div class="n" id="statOut">–</div><div class="l">Trucks out</div></div>
@@ -426,9 +450,8 @@
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="fleet">Fleet</button>
-    <button class="tab-btn" data-tab="ops">Ops</button>
+    <button class="tab-btn" data-tab="ops">EOD</button>
     <button class="tab-btn" data-tab="shop">Shop Inventory</button>
-    <button class="tab-btn" data-tab="log">Log</button>
   </div>
 
   <main id="mainContent">
@@ -525,6 +548,10 @@
       <div class="sheet-title" id="checkInTitle">Check In Truck</div>
       <button class="sheet-close" onclick="closeSheet('checkInOverlay')">✕</button>
     </div>
+    <div class="field" id="eodEditedByField" style="display:none;">
+      <label>Edited by (optional)</label>
+      <input type="text" id="eodEditedByInput" placeholder="e.g. Lonnie">
+    </div>
     <div class="field" id="equipReturnField" style="display:none;">
       <label>Equipment on this truck</label>
       <div id="equipReturnList"></div>
@@ -607,6 +634,7 @@ let selectedFullness = null;
 let selectedChecklist = new Set();
 let pendingEodPhoto = null;
 let selectedEquipStatus = new Map();
+let eodEditMode = false;
 let currentLocationId = null;
 let currentLocationName = null;
 let selectedLoginLocation = null;
@@ -949,7 +977,7 @@ function renderOps(){
       ${missingEquip.map(e=>`<div class="oms-item">${e.icon} ${e.name} <span class="ops-missing-chip">${e.missingReportedBy||'Unknown'} · ${dateTimeShort(e.missingSince)}</span></div>`).join('')}
     </div>`;
   }
-  html += `<div class="ops-note">Sorted fullest-first — those trucks need a dump run or consolidation before rolling out. Empty trucks near the bottom can head straight to the next job.</div>`;
+  html += `<div class="ops-note">Sorted fullest-first — those trucks need a dump run or consolidation before rolling out. Empty trucks near the bottom can head straight to the next job. Tap Edit on any card to fix a missed detail.</div>`;
   html += `<div class="ops-grid">`;
   sorted.forEach(t=>{ html += opsCard(t); });
   html += `</div>`;
@@ -971,9 +999,11 @@ function opsCard(t){
   }
   const eod = t.lastEod;
   const chips = eod.checklist.map(c=>`<span class="ops-chip">${c}</span>`).join('');
-  const photo = eod.photo ? `<img class="ops-thumb" src="${eod.photo}" onclick="openLightbox(${t.id})">` : '';
+  const photo = eod.photo ? `<img class="ops-thumb" src="${eod.photo}" onclick="event.stopPropagation(); openLightbox(${t.id})">` : '';
   const missingFlag = (eod.missingItems && eod.missingItems.length)
     ? `<div class="ops-problem-flag">🧰 Missing: ${eod.missingItems.join(', ')}</div>` : '';
+  const editedNote = eod.lastEditedBy
+    ? `<div class="ops-sub">Edited by ${eod.lastEditedBy} · ${timeShort(eod.lastEditedAt)}</div>` : '';
   return `
   <div class="ops-card">
     <div class="ops-card-head">
@@ -986,6 +1016,8 @@ function opsCard(t){
     ${photo}
     <div class="ops-chips">${chips}</div>
     <div class="ops-sub">${eod.submittedBy||'Unknown'} · ${timeShort(eod.submittedAt)}</div>
+    ${editedNote}
+    <button class="ops-edit-btn" onclick="openEodEdit(${t.id})">✏️ Edit</button>
   </div>`;
 }
 
@@ -1161,11 +1193,13 @@ function escapeHtml(str){
 /* Check In — end of day */
 function openCheckIn(truckId){
   checkInTruckId = truckId;
+  eodEditMode = false;
   selectedFullness = null;
   selectedChecklist = new Set();
   pendingEodPhoto = null;
   selectedEquipStatus = new Map();
   document.getElementById('checkInTitle').textContent = 'Check In Truck ' + truckId;
+  document.getElementById('eodEditedByField').style.display = 'none';
 
   const items = equipForTruck(truckId);
   const equipField = document.getElementById('equipReturnField');
@@ -1257,6 +1291,12 @@ function submitCheckIn(){
   if(!pendingEodPhoto){ showToast('A photo of the junk is required'); return; }
 
   const truck = state.trucks.find(t=>t.id===checkInTruckId);
+
+  if(eodEditMode){
+    submitEodEdit(truck);
+    return;
+  }
+
   const driverName = truck.driver;
   const now = new Date().toISOString();
   const items = equipForTruck(checkInTruckId);
@@ -1269,6 +1309,7 @@ function submitCheckIn(){
   const missingNote = document.getElementById('missingNotesInput').value.trim() || null;
   const returned = [];
   const missing = [];
+  const manifest = [];
   items.forEach(e=>{
     const status = selectedEquipStatus.get(e.id);
     e.truckId = null;
@@ -1281,10 +1322,12 @@ function submitCheckIn(){
       e.missingNote = missingNote;
       e.lastAction = 'reported missing';
       missing.push(e.name);
+      manifest.push({id:e.id, name:e.name, icon:e.icon, status:'missing'});
     } else {
       e.missing = false;
       e.lastAction = 'returned';
       returned.push(e.name);
+      manifest.push({id:e.id, name:e.name, icon:e.icon, status:'returned'});
     }
   });
 
@@ -1294,7 +1337,11 @@ function submitCheckIn(){
     photo: pendingEodPhoto,
     submittedBy: driverName,
     submittedAt: now,
-    missingItems: missing
+    missingItems: missing,
+    equipmentManifest: manifest,
+    missingNote: missingNote,
+    lastEditedBy: null,
+    lastEditedAt: null
   };
   truck.status = 'available';
   truck.driver = null;
@@ -1312,6 +1359,149 @@ function submitCheckIn(){
   showToast(missing.length
     ? `Truck ${checkInTruckId} checked in — ${missing.length} item(s) flagged missing`
     : `Truck ${checkInTruckId} checked in — thanks${driverName?', '+driverName:''}!`);
+}
+
+/* Editing an already-submitted end-of-day entry from the EOD tab */
+function openEodEdit(truckId){
+  const truck = state.trucks.find(t=>t.id===truckId);
+  if(!truck || !truck.lastEod) return;
+  const eod = truck.lastEod;
+
+  checkInTruckId = truckId;
+  eodEditMode = true;
+  selectedFullness = eod.fullness;
+  selectedChecklist = new Set(eod.checklist || []);
+  pendingEodPhoto = eod.photo || null;
+  selectedEquipStatus = new Map();
+
+  document.getElementById('checkInTitle').textContent = 'Edit End of Day — Truck ' + truckId;
+  document.getElementById('eodEditedByField').style.display = 'block';
+  document.getElementById('eodEditedByInput').value = '';
+  document.getElementById('missingNotesInput').value = eod.missingNote || '';
+
+  const manifest = eod.equipmentManifest || [];
+  const equipField = document.getElementById('equipReturnField');
+  if(manifest.length){
+    equipField.style.display = 'block';
+    document.getElementById('equipReturnList').innerHTML = manifest.map(m=>{
+      selectedEquipStatus.set(m.id, m.status);
+      return `
+      <div class="equip-return-row" data-item="${m.id}">
+        <span class="ername">${m.icon} ${m.name}</span>
+        <div class="equip-return-choice">
+          <button type="button" class="er-btn returned ${m.status==='returned'?'selected':''}" onclick="setEquipReturnStatus('${m.id}','returned')">Returned</button>
+          <button type="button" class="er-btn missing ${m.status==='missing'?'selected':''}" onclick="setEquipReturnStatus('${m.id}','missing')">Missing</button>
+        </div>
+      </div>`;
+    }).join('');
+    document.getElementById('missingNotesField').style.display =
+      manifest.some(m=>m.status==='missing') ? 'block' : 'none';
+  } else {
+    equipField.style.display = 'none';
+    document.getElementById('missingNotesField').style.display = 'none';
+  }
+
+  document.getElementById('fullnessRow').innerHTML = FULLNESS_LEVELS.map(level=>
+    `<button type="button" class="fullness-pill ${level===selectedFullness?'selected':''}" data-level="${level}" onclick="selectFullness('${level}')">${level}</button>`
+  ).join('');
+
+  document.getElementById('checklistGrid').innerHTML = JUNK_CATEGORIES.map(cat=>
+    `<button type="button" class="checklist-item ${selectedChecklist.has(cat)?'selected':''}" data-cat="${cat}" onclick="toggleChecklistItem('${cat}')">${cat}</button>`
+  ).join('');
+
+  const preview = document.getElementById('photoPreview');
+  const hint = document.getElementById('photoHint');
+  if(pendingEodPhoto){
+    preview.src = pendingEodPhoto;
+    preview.style.display = 'block';
+    hint.style.display = 'none';
+  } else {
+    preview.style.display = 'none';
+    hint.style.display = 'block';
+  }
+  document.getElementById('eodPhotoInput').value = '';
+
+  document.getElementById('checkInOverlay').classList.add('show');
+}
+
+function submitEodEdit(truck){
+  const eod = truck.lastEod;
+  const manifest = eod.equipmentManifest || [];
+
+  if(manifest.length && selectedEquipStatus.size < manifest.length){
+    showToast('Confirm each piece of equipment as Returned or Missing');
+    return;
+  }
+
+  const editedBy = document.getElementById('eodEditedByInput').value.trim();
+  const missingNote = document.getElementById('missingNotesInput').value.trim() || null;
+  const now = new Date().toISOString();
+
+  const returnedNames = [];
+  const missingNames = [];
+  const changedButSkipped = [];
+
+  const newManifest = manifest.map(m=>{
+    const newStatus = selectedEquipStatus.get(m.id) || m.status;
+    if(newStatus === m.status){
+      (newStatus==='missing' ? missingNames : returnedNames).push(m.name);
+      return m;
+    }
+    const eq = state.equipment.find(e=>e.id===m.id);
+    if(!eq){
+      changedButSkipped.push(m.name);
+      return m;
+    }
+    if(newStatus==='missing'){
+      if(eq.truckId){
+        // Already checked out on another truck since then — don't touch it.
+        changedButSkipped.push(m.name);
+        missingNames.push(m.name);
+        return m;
+      }
+      eq.missing = true;
+      eq.missingSince = now;
+      eq.missingReportedBy = editedBy || eod.submittedBy;
+      eq.missingNote = missingNote;
+      eq.lastAction = 'reported missing';
+      eq.lastTs = now;
+      missingNames.push(m.name);
+      return {...m, status:'missing'};
+    } else {
+      eq.missing = false;
+      eq.missingSince = null;
+      eq.missingReportedBy = null;
+      eq.missingNote = null;
+      eq.lastAction = 'returned';
+      eq.lastUser = editedBy || eod.submittedBy;
+      eq.lastTs = now;
+      returnedNames.push(m.name);
+      return {...m, status:'returned'};
+    }
+  });
+
+  truck.lastEod = {
+    ...eod,
+    fullness: selectedFullness,
+    checklist: Array.from(selectedChecklist),
+    photo: pendingEodPhoto,
+    equipmentManifest: newManifest,
+    missingItems: newManifest.filter(m=>m.status==='missing').map(m=>m.name),
+    missingNote: missingNote,
+    lastEditedBy: editedBy || 'Unknown',
+    lastEditedAt: now
+  };
+
+  let logMsg = `Truck ${checkInTruckId} end-of-day edited${editedBy?' by '+editedBy:''} — ${selectedFullness} full`;
+  if(missingNames.length) logMsg += ` — missing ${missingNames.join(', ')}`;
+  if(changedButSkipped.length) logMsg += ` (couldn't update ${changedButSkipped.join(', ')} — already back in use)`;
+  addLog(missingNames.length ? '⚠️' : '✏️', logMsg);
+
+  closeSheet('checkInOverlay');
+  eodEditMode = false;
+  saveState();
+  render();
+  showToast(`Truck ${checkInTruckId} end-of-day updated`);
 }
 
 function closeSheet(id){
@@ -1600,6 +1790,36 @@ async function switchLocation(){
   try{ await fetch('/api/logout', {method:'POST', credentials:'same-origin'}); }catch(e){ /* ignore */ }
   location.reload();
 }
+
+/* Header dropdown menu */
+function toggleHeaderMenu(){
+  document.getElementById('headerMenu').classList.toggle('show');
+}
+
+function closeHeaderMenu(){
+  document.getElementById('headerMenu').classList.remove('show');
+}
+
+function headerMenuAction(action){
+  closeHeaderMenu();
+  if(action==='configure') openManage();
+  else if(action==='switch') switchLocation();
+  else if(action==='log') openLogTab();
+}
+
+function openLogTab(){
+  activeTab = 'log';
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  render();
+}
+
+document.addEventListener('click', (e)=>{
+  const wrap = document.getElementById('headerMenuWrap');
+  const menu = document.getElementById('headerMenu');
+  if(menu.classList.contains('show') && wrap && !wrap.contains(e.target)){
+    menu.classList.remove('show');
+  }
+});
 
 async function checkSessionAndInit(){
   try{
