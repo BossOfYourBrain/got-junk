@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
 <title>VI Fleet Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -501,11 +502,12 @@ function defaultState(){
   };
 }
 
-function loadState(){
+async function loadState(){
   try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){
-      state = JSON.parse(raw);
+    const res = await fetch('/api/state');
+    const data = await res.json();
+    if(data && data.value){
+      state = data.value;
       if(!state.log) state.log = [];
       state.trucks.forEach(t=>{
         if(t.problem===undefined) t.problem = null;
@@ -522,19 +524,24 @@ function loadState(){
       saveState();
     }
   }catch(e){
-    console.error('Could not load saved state, starting fresh', e);
+    console.error('Could not load fleet state, starting fresh locally', e);
     state = defaultState();
-    saveState();
+    showToast("Couldn't reach the server — showing a blank board");
   }
   render();
 }
 
-function saveState(){
+async function saveState(){
   try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const res = await fetch('/api/state', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(state)
+    });
+    if(!res.ok) throw new Error('Save request failed: ' + res.status);
   }catch(e){
     console.error('Storage save failed', e);
-    showToast("Couldn't save — your browser storage may be full or disabled");
+    showToast("Couldn't sync — check your connection");
   }
 }
 
@@ -1221,16 +1228,21 @@ function resolveMissingItem(id){
   showToast(`${item.name} marked as found`);
 }
 
-/* Keep multiple tabs in the same browser in sync (e.g. two windows open side by side) */
-window.addEventListener('storage', (e)=>{
-  if(e.key === STORAGE_KEY && e.newValue){
-    try{
-      state = JSON.parse(e.newValue);
-      if(!state.log) state.log = [];
-      render();
-    }catch(err){ /* ignore malformed update */ }
-  }
-});
+/* Poll the shared backend so other people's phones/laptops show up here too */
+setInterval(async ()=>{
+  try{
+    const res = await fetch('/api/state');
+    const data = await res.json();
+    if(data && data.value){
+      const fresh = JSON.stringify(data.value);
+      if(fresh !== JSON.stringify(state)){
+        state = data.value;
+        if(!state.log) state.log = [];
+        render();
+      }
+    }
+  }catch(e){ /* silent — keep showing last known state until the network recovers */ }
+}, 5000);
 
 loadState();
 </script>
