@@ -308,18 +308,32 @@
     position:absolute;top:16px;right:16px;width:38px;height:38px;border-radius:50%;
     background:rgba(255,255,255,.15);border:none;color:#fff;font-size:18px;cursor:pointer;
   }
+
+  /* Login gate */
+  #authLoading{padding-top:120px;}
+  .login-sub{font-size:12.5px;color:var(--ink-soft);margin-bottom:16px;line-height:1.4;}
+  .login-location-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .login-location-btn{
+    padding:13px 8px;border-radius:10px;border:1.5px solid var(--line);background:#fff;
+    font-weight:700;font-size:13.5px;color:var(--ink);cursor:pointer;
+  }
+  .login-location-btn.selected{border-color:var(--blue);background:#EEF4FC;color:var(--blue);}
+  .login-error{color:var(--red);font-size:12.5px;font-weight:600;min-height:16px;margin-bottom:4px;}
+  #loginPasswordInput{letter-spacing:.25em;font-weight:700;text-align:center;}
 </style>
 </head>
 <body>
-<div class="wrap">
+<div id="authLoading" class="loading">Loading…</div>
+<div class="wrap" id="appRoot" style="display:none;">
 
   <header>
     <div class="brand-row">
-      <div class="brand-mark">VI</div>
+      <div class="brand-mark" id="brandMark">GJ</div>
       <div class="brand-text">
         <div class="top">1-800-GOT-JUNK</div>
-        <div class="main">Vancouver Island Fleet Board</div>
+        <div class="main" id="locationTitle">Fleet Board</div>
       </div>
+      <button class="settings-btn" onclick="switchLocation()" title="Switch location">↔</button>
       <button class="settings-btn" onclick="openManage()" title="Configure trucks & equipment">⚙</button>
     </div>
     <div class="stat-strip">
@@ -340,6 +354,27 @@
   <main id="mainContent">
     <div class="loading">Loading fleet board…</div>
   </main>
+</div>
+
+<div class="overlay" id="loginOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-title">Sign In</div>
+    </div>
+    <div class="login-sub">Select your location and enter today's password to view its fleet.</div>
+    <div class="field">
+      <label>Location</label>
+      <div class="login-location-grid" id="loginLocationGrid"></div>
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="loginPasswordInput" maxlength="5" inputmode="numeric" pattern="[0-9]*" placeholder="5-digit code">
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <div class="sheet-submit">
+      <button class="btn btn-primary" id="loginSubmitBtn" onclick="submitLogin()">Enter</button>
+    </div>
+  </div>
 </div>
 
 <div class="overlay" id="checkoutOverlay">
@@ -472,7 +507,6 @@
 </div>
 
 <script>
-const STORAGE_KEY = 'vi-fleet-state-v2';
 let state = null;
 let activeTab = 'fleet';
 let checkoutTruckId = null;
@@ -485,6 +519,10 @@ let selectedFullness = null;
 let selectedChecklist = new Set();
 let pendingEodPhoto = null;
 let selectedEquipStatus = new Map();
+let currentLocationId = null;
+let currentLocationName = null;
+let selectedLoginLocation = null;
+let pollHandle = null;
 
 const FULLNESS_LEVELS = ['Empty','1/4','1/2','3/4','Full'];
 const JUNK_CATEGORIES = ['Metal','Wood','Mattresses','Garbage','Paint/Hazard Waste','Electronics'];
@@ -494,37 +532,77 @@ function fullnessBand(level){
   return 'f-mid';
 }
 
-function defaultState(){
-  return {
-    trucks: [
-      {id:2, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null},
-      {id:3, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null},
-      {id:5, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null},
-      {id:7, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null},
-      {id:9, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null},
-      {id:12, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null},
-    ],
+/* Location IDs/names/abbreviations here are just UI labels — matching the
+   real access control lives server-side in lib/auth.js and the location's
+   password env var. Each location gets its own starter fleet the first
+   time anyone signs in there; after that it's whatever Configure Fleet
+   has been set to for that location. */
+const LOCATIONS_UI = [
+  {id:'vancouver-island', name:'Vancouver Island', abbr:'VI'},
+  {id:'vancouver', name:'Vancouver', abbr:'VAN'},
+  {id:'calgary', name:'Calgary', abbr:'CAL'},
+  {id:'edmonton', name:'Edmonton', abbr:'EDM'},
+];
+
+const LOCATION_FLEET_PRESETS = {
+  'vancouver-island': {
+    trucks: [2,3,5,7,9,12],
     equipment: [
-      {id:'saw1', name:'Sawzall #1', icon:'🔧', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
-      {id:'saw2', name:'Sawzall #2', icon:'🔧', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
-      {id:'circ1', name:'Circular Saw #1', icon:'🪚', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
-      {id:'impact1', name:'Impact Drill #1', icon:'🛠️', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
-      {id:'impact2', name:'Impact Drill #2', icon:'🛠️', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
-      {id:'vac1', name:'Shop Vac #1', icon:'🌀', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
-      {id:'dolly1', name:'Hand Truck #1', icon:'📦', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
-      {id:'dolly2', name:'Hand Truck #2', icon:'📦', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
-      {id:'straps1', name:'Furniture Straps', icon:'🪢', category:'tool', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
-      {id:'bag1', name:'Tool Bag 1', icon:'🎒', category:'bag', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
-      {id:'bag2', name:'Tool Bag 2', icon:'🎒', category:'bag', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
-      {id:'bag3', name:'Tool Bag 3', icon:'🎒', category:'bag', truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null},
-    ],
+      ['Sawzall #1','🔧','tool'],['Sawzall #2','🔧','tool'],['Circular Saw #1','🪚','tool'],
+      ['Impact Drill #1','🛠️','tool'],['Impact Drill #2','🛠️','tool'],['Shop Vac #1','🌀','tool'],
+      ['Hand Truck #1','📦','tool'],['Hand Truck #2','📦','tool'],['Furniture Straps','🪢','tool'],
+      ['Tool Bag 1','🎒','bag'],['Tool Bag 2','🎒','bag'],['Tool Bag 3','🎒','bag'],
+    ]
+  },
+  'vancouver': {
+    trucks: [4,6,8,10,14,16,18],
+    equipment: [
+      ['Sawzall #1','🔧','tool'],['Sawzall #2','🔧','tool'],['Sawzall #3','🔧','tool'],
+      ['Circular Saw #1','🪚','tool'],['Circular Saw #2','🪚','tool'],
+      ['Impact Drill #1','🛠️','tool'],['Impact Drill #2','🛠️','tool'],['Impact Drill #3','🛠️','tool'],
+      ['Shop Vac #1','🌀','tool'],['Shop Vac #2','🌀','tool'],
+      ['Hand Truck #1','📦','tool'],['Hand Truck #2','📦','tool'],['Hand Truck #3','📦','tool'],
+      ['Furniture Straps','🪢','tool'],
+      ['Tool Bag 1','🎒','bag'],['Tool Bag 2','🎒','bag'],['Tool Bag 3','🎒','bag'],['Tool Bag 4','🎒','bag'],
+    ]
+  },
+  'calgary': {
+    trucks: [1,3,5,7,9],
+    equipment: [
+      ['Sawzall #1','🔧','tool'],['Circular Saw #1','🪚','tool'],
+      ['Impact Drill #1','🛠️','tool'],['Impact Drill #2','🛠️','tool'],
+      ['Shop Vac #1','🌀','tool'],['Hand Truck #1','📦','tool'],
+      ['Tool Bag 1','🎒','bag'],['Tool Bag 2','🎒','bag'],
+    ]
+  },
+  'edmonton': {
+    trucks: [2,4,6,8],
+    equipment: [
+      ['Sawzall #1','🔧','tool'],['Circular Saw #1','🪚','tool'],
+      ['Impact Drill #1','🛠️','tool'],['Shop Vac #1','🌀','tool'],
+      ['Hand Truck #1','📦','tool'],['Hand Truck #2','📦','tool'],
+      ['Tool Bag 1','🎒','bag'],['Tool Bag 2','🎒','bag'],
+    ]
+  },
+};
+
+function defaultState(locationId){
+  const preset = LOCATION_FLEET_PRESETS[locationId] || LOCATION_FLEET_PRESETS['vancouver-island'];
+  return {
+    trucks: preset.trucks.map(id=>({id, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null})),
+    equipment: preset.equipment.map(([name,icon,category])=>({
+      id: name.toLowerCase().replace(/[^a-z0-9]+/g,'-'),
+      name, icon, category, truckId:null, lastUser:null, lastAction:null, lastTs:null,
+      missing:false, missingSince:null, missingReportedBy:null, missingNote:null
+    })),
     log: []
   };
 }
 
 async function loadState(){
   try{
-    const res = await fetch('/api/state');
+    const res = await fetch('/api/state', {credentials:'same-origin'});
+    if(res.status===401){ showLogin(); return; }
     const data = await res.json();
     if(data && data.value){
       state = data.value;
@@ -540,12 +618,12 @@ async function loadState(){
         if(e.missingNote===undefined) e.missingNote = null;
       });
     } else {
-      state = defaultState();
+      state = defaultState(currentLocationId);
       saveState();
     }
   }catch(e){
     console.error('Could not load fleet state, starting fresh locally', e);
-    state = defaultState();
+    state = defaultState(currentLocationId);
     showToast("Couldn't reach the server — showing a blank board");
   }
   render();
@@ -555,9 +633,11 @@ async function saveState(){
   try{
     const res = await fetch('/api/state', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(state)
     });
+    if(res.status===401){ showLogin(); return; }
     if(!res.ok) throw new Error('Save request failed: ' + res.status);
   }catch(e){
     console.error('Storage save failed', e);
@@ -1263,23 +1343,131 @@ function resolveMissingItem(id){
   showToast(`${item.name} marked as found`);
 }
 
-/* Poll the shared backend so other people's phones/laptops show up here too */
-setInterval(async ()=>{
-  try{
-    const res = await fetch('/api/state');
-    const data = await res.json();
-    if(data && data.value){
-      const fresh = JSON.stringify(data.value);
-      if(fresh !== JSON.stringify(state)){
-        state = data.value;
-        if(!state.log) state.log = [];
-        render();
+/* Poll the shared backend so other people's phones/laptops show up here too.
+   Only runs once signed in; stops itself if the session has expired. */
+function startPolling(){
+  if(pollHandle) clearInterval(pollHandle);
+  pollHandle = setInterval(async ()=>{
+    try{
+      const res = await fetch('/api/state', {credentials:'same-origin'});
+      if(res.status===401){
+        clearInterval(pollHandle);
+        showLogin();
+        return;
       }
-    }
-  }catch(e){ /* silent — keep showing last known state until the network recovers */ }
-}, 5000);
+      const data = await res.json();
+      if(data && data.value){
+        const fresh = JSON.stringify(data.value);
+        if(fresh !== JSON.stringify(state)){
+          state = data.value;
+          if(!state.log) state.log = [];
+          render();
+        }
+      }
+    }catch(e){ /* silent — keep showing last known state until the network recovers */ }
+  }, 5000);
+}
 
-loadState();
+/* Auth / location gate */
+function setLocation(id, name){
+  currentLocationId = id;
+  currentLocationName = name;
+  const meta = LOCATIONS_UI.find(l=>l.id===id);
+  document.getElementById('brandMark').textContent = meta ? meta.abbr : 'GJ';
+  document.getElementById('locationTitle').textContent = name + ' Fleet Board';
+}
+
+function showApp(){
+  document.getElementById('authLoading').style.display = 'none';
+  document.getElementById('loginOverlay').classList.remove('show');
+  document.getElementById('appRoot').style.display = '';
+}
+
+function showLogin(){
+  document.getElementById('authLoading').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'none';
+  if(pollHandle) clearInterval(pollHandle);
+  const grid = document.getElementById('loginLocationGrid');
+  if(!grid.dataset.built){
+    grid.innerHTML = LOCATIONS_UI.map(l=>
+      `<button type="button" class="login-location-btn" data-loc="${l.id}" onclick="selectLoginLocation('${l.id}')">${l.name}</button>`
+    ).join('');
+    grid.dataset.built = '1';
+  }
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('loginOverlay').classList.add('show');
+}
+
+function selectLoginLocation(id){
+  selectedLoginLocation = id;
+  document.querySelectorAll('.login-location-btn').forEach(el=>{
+    el.classList.toggle('selected', el.dataset.loc===id);
+  });
+}
+
+async function submitLogin(){
+  const errEl = document.getElementById('loginError');
+  const pwInput = document.getElementById('loginPasswordInput');
+  errEl.textContent = '';
+  if(!selectedLoginLocation){ errEl.textContent = 'Choose a location'; return; }
+  const pw = pwInput.value.trim();
+  if(!/^\d{5}$/.test(pw)){ errEl.textContent = 'Enter the 5-digit password'; return; }
+
+  const btn = document.getElementById('loginSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  try{
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({locationId: selectedLoginLocation, password: pw})
+    });
+    const data = await res.json();
+    if(res.ok && data.ok){
+      pwInput.value = '';
+      setLocation(data.locationId, data.locationName);
+      showApp();
+      await loadState();
+      startPolling();
+    } else {
+      errEl.textContent = data.error || 'Incorrect password';
+    }
+  }catch(e){
+    errEl.textContent = "Couldn't reach the server — try again";
+  }
+  btn.disabled = false;
+  btn.textContent = 'Enter';
+}
+
+document.getElementById('loginPasswordInput').addEventListener('keydown', (e)=>{
+  if(e.key==='Enter') submitLogin();
+});
+
+async function switchLocation(){
+  try{ await fetch('/api/logout', {method:'POST', credentials:'same-origin'}); }catch(e){ /* ignore */ }
+  location.reload();
+}
+
+async function checkSessionAndInit(){
+  try{
+    const res = await fetch('/api/session', {credentials:'same-origin'});
+    const data = await res.json();
+    if(data.authenticated){
+      setLocation(data.locationId, data.locationName);
+      showApp();
+      await loadState();
+      startPolling();
+    } else {
+      showLogin();
+    }
+  }catch(e){
+    console.error('Session check failed', e);
+    showLogin();
+  }
+}
+
+checkSessionAndInit();
 </script>
 </body>
 </html>
