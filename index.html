@@ -310,20 +310,100 @@
   }
 
   /* Login gate */
-  #authLoading{padding-top:120px;}
-  .login-sub{font-size:12.5px;color:var(--ink-soft);margin-bottom:16px;line-height:1.4;}
-  .login-location-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-  .login-location-btn{
-    padding:13px 8px;border-radius:10px;border:1.5px solid var(--line);background:#fff;
-    font-weight:700;font-size:13.5px;color:var(--ink);cursor:pointer;
+  #authLoading{padding:0;}
+  .skel-header{
+    background:linear-gradient(180deg,var(--blue-deep),var(--blue) 120%);
+    padding:18px 18px 20px;
   }
-  .login-location-btn.selected{border-color:var(--blue);background:#EEF4FC;color:var(--blue);}
+  .skel-brand-row{display:flex;align-items:center;gap:10px;}
+  .skel-block{background:rgba(255,255,255,.16);border-radius:9px;animation:skelPulse 1.5s ease-in-out infinite;}
+  .skel-mark{width:38px;height:38px;border-radius:9px;flex-shrink:0;}
+  .skel-text-col{flex:1;display:flex;flex-direction:column;gap:6px;}
+  .skel-line{height:11px;border-radius:5px;}
+  .skel-stats{display:flex;gap:6px;margin-top:14px;}
+  .skel-stat{flex:1;height:46px;border-radius:12px;background:rgba(255,255,255,.12);}
+  .skel-tabs{display:flex;gap:6px;padding:12px 14px 0;}
+  .skel-tab{flex:1;height:38px;border-radius:11px;background:#E3E7EE;animation:skelPulse 1.5s ease-in-out infinite;}
+  .skel-main{padding:14px;}
+  .skel-card{
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:14px;margin-bottom:12px;display:flex;gap:12px;align-items:center;
+  }
+  .skel-card-badge{width:52px;height:52px;border-radius:12px;background:#EEF0F4;flex-shrink:0;animation:skelPulse 1.5s ease-in-out infinite;}
+  .skel-card-lines{flex:1;display:flex;flex-direction:column;gap:8px;}
+  .skel-card-lines .skel-line{background:#EEF0F4;animation:skelPulse 1.5s ease-in-out infinite;}
+  .skel-card-lines .skel-line.w60{width:60%;}
+  .skel-card-lines .skel-line.w40{width:40%;}
+  @keyframes skelPulse{
+    0%,100%{opacity:1;}
+    50%{opacity:.45;}
+  }
+  .login-sub{font-size:12.5px;color:var(--ink-soft);margin-bottom:16px;line-height:1.4;}
+  .login-location-select{
+    width:100%;padding:12px 13px;border-radius:10px;border:1.5px solid var(--line);
+    font-size:15px;font-family:'Inter',sans-serif;background:#FAFBFC;color:var(--ink);
+    font-weight:600;appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%235B6779'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 12px center;background-size:18px;
+  }
+  .login-location-select:focus{outline:none;border-color:var(--blue);background-color:#fff;}
   .login-error{color:var(--red);font-size:12.5px;font-weight:600;min-height:16px;margin-bottom:4px;}
-  #loginPasswordInput{letter-spacing:.25em;font-weight:700;text-align:center;}
+  .pin-row{display:flex;gap:8px;justify-content:center;}
+  .pin-box{
+    width:100%;max-width:52px;aspect-ratio:1/1;text-align:center;font-size:22px;font-weight:800;
+    border-radius:10px;border:1.5px solid var(--line);background:#FAFBFC;font-family:'Inter',sans-serif;
+    color:var(--ink);
+  }
+  .pin-box:focus{outline:none;border-color:var(--blue);background:#fff;}
 </style>
 </head>
 <body>
-<div id="authLoading" class="loading">Loading…</div>
+<div id="authLoading">
+  <div class="skel-header">
+    <div class="skel-brand-row">
+      <div class="skel-block skel-mark"></div>
+      <div class="skel-text-col">
+        <div class="skel-block skel-line" style="width:40%;"></div>
+        <div class="skel-block skel-line" style="width:70%;height:14px;"></div>
+      </div>
+    </div>
+    <div class="skel-stats">
+      <div class="skel-stat"></div>
+      <div class="skel-stat"></div>
+      <div class="skel-stat"></div>
+      <div class="skel-stat"></div>
+    </div>
+  </div>
+  <div class="skel-tabs">
+    <div class="skel-tab"></div>
+    <div class="skel-tab"></div>
+    <div class="skel-tab"></div>
+    <div class="skel-tab"></div>
+  </div>
+  <div class="skel-main">
+    <div class="skel-card">
+      <div class="skel-card-badge"></div>
+      <div class="skel-card-lines">
+        <div class="skel-line w60"></div>
+        <div class="skel-line w40"></div>
+      </div>
+    </div>
+    <div class="skel-card">
+      <div class="skel-card-badge"></div>
+      <div class="skel-card-lines">
+        <div class="skel-line w60"></div>
+        <div class="skel-line w40"></div>
+      </div>
+    </div>
+    <div class="skel-card">
+      <div class="skel-card-badge"></div>
+      <div class="skel-card-lines">
+        <div class="skel-line w60"></div>
+        <div class="skel-line w40"></div>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="wrap" id="appRoot" style="display:none;">
 
   <header>
@@ -364,11 +444,19 @@
     <div class="login-sub">Select your location and enter today's password to view its fleet.</div>
     <div class="field">
       <label>Location</label>
-      <div class="login-location-grid" id="loginLocationGrid"></div>
+      <select class="login-location-select" id="loginLocationSelect" onchange="selectLoginLocation(this.value)">
+        <option value="" disabled selected>Choose a location…</option>
+      </select>
     </div>
     <div class="field">
       <label>Password</label>
-      <input type="password" id="loginPasswordInput" maxlength="5" inputmode="numeric" pattern="[0-9]*" placeholder="5-digit code">
+      <div class="pin-row" id="pinRow">
+        <input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pin-box" data-idx="0" autocomplete="off">
+        <input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pin-box" data-idx="1" autocomplete="off">
+        <input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pin-box" data-idx="2" autocomplete="off">
+        <input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pin-box" data-idx="3" autocomplete="off">
+        <input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="pin-box" data-idx="4" autocomplete="off">
+      </div>
     </div>
     <div class="login-error" id="loginError"></div>
     <div class="sheet-submit">
@@ -1209,265 +1297,4 @@ function submitCheckIn(){
     missingItems: missing
   };
   truck.status = 'available';
-  truck.driver = null;
-  truck.passenger = null;
-  truck.checkedOutAt = null;
-
-  let logMsg = `Truck ${checkInTruckId} checked in by ${driverName} — ${selectedFullness} full`;
-  if(returned.length) logMsg += ` — returned ${returned.join(', ')}`;
-  if(missing.length) logMsg += ` — missing ${missing.join(', ')}${missingNote?' ("'+missingNote+'")':''}`;
-  addLog(missing.length ? '⚠️' : '✅', logMsg);
-
-  closeSheet('checkInOverlay');
-  saveState();
-  render();
-  showToast(missing.length
-    ? `Truck ${checkInTruckId} checked in — ${missing.length} item(s) flagged missing`
-    : `Truck ${checkInTruckId} checked in — thanks${driverName?', '+driverName:''}!`);
-}
-
-function closeSheet(id){
-  document.getElementById(id).classList.remove('show');
-}
-
-/* Full-size photo viewer */
-function openLightbox(truckId){
-  const truck = state.trucks.find(t=>t.id===truckId);
-  if(!truck || !truck.lastEod || !truck.lastEod.photo) return;
-  document.getElementById('lightboxImg').src = truck.lastEod.photo;
-  document.getElementById('lightboxCaption').textContent =
-    `Truck ${truckId} — ${truck.lastEod.fullness} full · ${truck.lastEod.submittedBy||'Unknown'} · ${dateTimeShort(truck.lastEod.submittedAt)}`;
-  document.getElementById('photoLightbox').classList.add('show');
-}
-
-function closeLightbox(event){
-  if(event) event.stopPropagation();
-  document.getElementById('photoLightbox').classList.remove('show');
-}
-
-/* Manage / configure */
-function openManage(){
-  renderManage();
-  document.getElementById('manageOverlay').classList.add('show');
-}
-
-function renderManage(){
-  const truckWrap = document.getElementById('manageTrucks');
-  const sortedTrucks = [...state.trucks].sort((a,b)=>a.id-b.id);
-  truckWrap.innerHTML = sortedTrucks.length ? sortedTrucks.map(t=>`
-    <div class="manage-row">
-      <div>
-        <div class="mname">Truck ${t.id}</div>
-        <div class="msub">${t.status==='out' ? 'Currently out — check in before removing' : 'At the shop'}</div>
-      </div>
-      <button class="remove-btn" ${t.status==='out'?'disabled':''} onclick="removeTruck(${t.id})" title="Remove">✕</button>
-    </div>
-  `).join('') : `<div class="empty-note">No trucks yet.</div>`;
-
-  const equipWrap = document.getElementById('manageEquipment');
-  const sortedEquip = [...state.equipment].sort((a,b)=>a.name.localeCompare(b.name));
-  equipWrap.innerHTML = sortedEquip.length ? sortedEquip.map(e=>`
-    <div class="manage-row">
-      <div>
-        <div class="mname">${e.icon} ${e.name}</div>
-        <div class="msub">${e.missing ? 'Reported missing — resolve first' : (e.truckId ? 'On Truck '+e.truckId+' — return before removing' : 'At the shop')}</div>
-      </div>
-      <button class="remove-btn" ${(e.truckId||e.missing)?'disabled':''} onclick="removeEquipmentItem('${e.id}')" title="Remove">✕</button>
-    </div>
-  `).join('') : `<div class="empty-note">No equipment yet.</div>`;
-}
-
-function addTruck(){
-  const input = document.getElementById('newTruckNumber');
-  const num = parseInt(input.value, 10);
-  if(!num || num<=0){ showToast('Enter a valid truck number'); return; }
-  if(state.trucks.some(t=>t.id===num)){ showToast(`Truck ${num} already exists`); return; }
-  state.trucks.push({id:num, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null});
-  addLog('🛠️', `Truck ${num} added to the fleet`);
-  input.value = '';
-  saveState();
-  renderManage();
-  render();
-  showToast(`Truck ${num} added`);
-}
-
-function removeTruck(id){
-  const truck = state.trucks.find(t=>t.id===id);
-  if(!truck || truck.status==='out'){ showToast('Check the truck in before removing it'); return; }
-  state.trucks = state.trucks.filter(t=>t.id!==id);
-  addLog('🗑️', `Truck ${id} removed from the fleet`);
-  saveState();
-  renderManage();
-  render();
-  showToast(`Truck ${id} removed`);
-}
-
-function addEquipmentItem(){
-  const nameInput = document.getElementById('newEquipName');
-  const catSelect = document.getElementById('newEquipCategory');
-  const name = nameInput.value.trim();
-  if(!name){ showToast('Enter an equipment name'); return; }
-  const category = catSelect.value;
-  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-') + '-' + Date.now().toString(36);
-  const icon = category==='bag' ? '🎒' : '🧰';
-  state.equipment.push({id, name, icon, category, truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null});
-  addLog('🛠️', `${name} added to shop inventory`);
-  nameInput.value = '';
-  saveState();
-  renderManage();
-  render();
-  showToast(`${name} added`);
-}
-
-function removeEquipmentItem(id){
-  const item = state.equipment.find(e=>e.id===id);
-  if(!item || item.truckId || item.missing){ showToast('Resolve the item (return it or mark found) before removing it'); return; }
-  state.equipment = state.equipment.filter(e=>e.id!==id);
-  addLog('🗑️', `${item.name} removed from shop inventory`);
-  saveState();
-  renderManage();
-  render();
-  showToast(`${item.name} removed`);
-}
-
-function resolveMissingItem(id){
-  const item = state.equipment.find(e=>e.id===id);
-  if(!item) return;
-  item.missing = false;
-  item.missingSince = null;
-  item.missingReportedBy = null;
-  item.missingNote = null;
-  addLog('✅', `${item.name} found and returned to shop inventory`);
-  saveState();
-  render();
-  showToast(`${item.name} marked as found`);
-}
-
-/* Poll the shared backend so other people's phones/laptops show up here too.
-   Only runs once signed in; stops itself if the session has expired. */
-function startPolling(){
-  if(pollHandle) clearInterval(pollHandle);
-  pollHandle = setInterval(async ()=>{
-    try{
-      const res = await fetch('/api/state', {credentials:'same-origin'});
-      if(res.status===401){
-        clearInterval(pollHandle);
-        showLogin();
-        return;
-      }
-      const data = await res.json();
-      if(data && data.value){
-        const fresh = JSON.stringify(data.value);
-        if(fresh !== JSON.stringify(state)){
-          state = data.value;
-          if(!state.log) state.log = [];
-          render();
-        }
-      }
-    }catch(e){ /* silent — keep showing last known state until the network recovers */ }
-  }, 5000);
-}
-
-/* Auth / location gate */
-function setLocation(id, name){
-  currentLocationId = id;
-  currentLocationName = name;
-  const meta = LOCATIONS_UI.find(l=>l.id===id);
-  document.getElementById('brandMark').textContent = meta ? meta.abbr : 'GJ';
-  document.getElementById('locationTitle').textContent = name + ' Fleet Board';
-}
-
-function showApp(){
-  document.getElementById('authLoading').style.display = 'none';
-  document.getElementById('loginOverlay').classList.remove('show');
-  document.getElementById('appRoot').style.display = '';
-}
-
-function showLogin(){
-  document.getElementById('authLoading').style.display = 'none';
-  document.getElementById('appRoot').style.display = 'none';
-  if(pollHandle) clearInterval(pollHandle);
-  const grid = document.getElementById('loginLocationGrid');
-  if(!grid.dataset.built){
-    grid.innerHTML = LOCATIONS_UI.map(l=>
-      `<button type="button" class="login-location-btn" data-loc="${l.id}" onclick="selectLoginLocation('${l.id}')">${l.name}</button>`
-    ).join('');
-    grid.dataset.built = '1';
-  }
-  document.getElementById('loginError').textContent = '';
-  document.getElementById('loginOverlay').classList.add('show');
-}
-
-function selectLoginLocation(id){
-  selectedLoginLocation = id;
-  document.querySelectorAll('.login-location-btn').forEach(el=>{
-    el.classList.toggle('selected', el.dataset.loc===id);
-  });
-}
-
-async function submitLogin(){
-  const errEl = document.getElementById('loginError');
-  const pwInput = document.getElementById('loginPasswordInput');
-  errEl.textContent = '';
-  if(!selectedLoginLocation){ errEl.textContent = 'Choose a location'; return; }
-  const pw = pwInput.value.trim();
-  if(!/^\d{5}$/.test(pw)){ errEl.textContent = 'Enter the 5-digit password'; return; }
-
-  const btn = document.getElementById('loginSubmitBtn');
-  btn.disabled = true;
-  btn.textContent = 'Checking…';
-  try{
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({locationId: selectedLoginLocation, password: pw})
-    });
-    const data = await res.json();
-    if(res.ok && data.ok){
-      pwInput.value = '';
-      setLocation(data.locationId, data.locationName);
-      showApp();
-      await loadState();
-      startPolling();
-    } else {
-      errEl.textContent = data.error || 'Incorrect password';
-    }
-  }catch(e){
-    errEl.textContent = "Couldn't reach the server — try again";
-  }
-  btn.disabled = false;
-  btn.textContent = 'Enter';
-}
-
-document.getElementById('loginPasswordInput').addEventListener('keydown', (e)=>{
-  if(e.key==='Enter') submitLogin();
-});
-
-async function switchLocation(){
-  try{ await fetch('/api/logout', {method:'POST', credentials:'same-origin'}); }catch(e){ /* ignore */ }
-  location.reload();
-}
-
-async function checkSessionAndInit(){
-  try{
-    const res = await fetch('/api/session', {credentials:'same-origin'});
-    const data = await res.json();
-    if(data.authenticated){
-      setLocation(data.locationId, data.locationName);
-      showApp();
-      await loadState();
-      startPolling();
-    } else {
-      showLogin();
-    }
-  }catch(e){
-    console.error('Session check failed', e);
-    showLogin();
-  }
-}
-
-checkSessionAndInit();
-</script>
-</body>
-</html>
+  truck.driver
