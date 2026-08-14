@@ -1,0 +1,35 @@
+# Keep this internal tool out of search engines and AI training crawlers.
+# Note: this asks well-behaved crawlers not to visit — it does not restrict
+# access. The URL is still reachable by anyone who has it.
+
+User-agent: *
+Disallow: /
+
+# Common AI / LLM crawlers (redundant with the wildcard above, listed
+# explicitly since some of these are newer and may not respect "*" reliably)
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
