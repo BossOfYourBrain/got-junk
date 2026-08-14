@@ -1297,4 +1297,329 @@ function submitCheckIn(){
     missingItems: missing
   };
   truck.status = 'available';
-  truck.driver
+  truck.driver = null;
+  truck.passenger = null;
+  truck.checkedOutAt = null;
+
+  let logMsg = `Truck ${checkInTruckId} checked in by ${driverName} — ${selectedFullness} full`;
+  if(returned.length) logMsg += ` — returned ${returned.join(', ')}`;
+  if(missing.length) logMsg += ` — missing ${missing.join(', ')}${missingNote?' ("'+missingNote+'")':''}`;
+  addLog(missing.length ? '⚠️' : '✅', logMsg);
+
+  closeSheet('checkInOverlay');
+  saveState();
+  render();
+  showToast(missing.length
+    ? `Truck ${checkInTruckId} checked in — ${missing.length} item(s) flagged missing`
+    : `Truck ${checkInTruckId} checked in — thanks${driverName?', '+driverName:''}!`);
+}
+
+function closeSheet(id){
+  document.getElementById(id).classList.remove('show');
+}
+
+/* Full-size photo viewer */
+function openLightbox(truckId){
+  const truck = state.trucks.find(t=>t.id===truckId);
+  if(!truck || !truck.lastEod || !truck.lastEod.photo) return;
+  document.getElementById('lightboxImg').src = truck.lastEod.photo;
+  document.getElementById('lightboxCaption').textContent =
+    `Truck ${truckId} — ${truck.lastEod.fullness} full · ${truck.lastEod.submittedBy||'Unknown'} · ${dateTimeShort(truck.lastEod.submittedAt)}`;
+  document.getElementById('photoLightbox').classList.add('show');
+}
+
+function closeLightbox(event){
+  if(event) event.stopPropagation();
+  document.getElementById('photoLightbox').classList.remove('show');
+}
+
+/* Manage / configure */
+function openManage(){
+  renderManage();
+  document.getElementById('manageOverlay').classList.add('show');
+}
+
+function renderManage(){
+  const truckWrap = document.getElementById('manageTrucks');
+  const sortedTrucks = [...state.trucks].sort((a,b)=>a.id-b.id);
+  truckWrap.innerHTML = sortedTrucks.length ? sortedTrucks.map(t=>`
+    <div class="manage-row">
+      <div>
+        <div class="mname">Truck ${t.id}</div>
+        <div class="msub">${t.status==='out' ? 'Currently out — check in before removing' : 'At the shop'}</div>
+      </div>
+      <button class="remove-btn" ${t.status==='out'?'disabled':''} onclick="removeTruck(${t.id})" title="Remove">✕</button>
+    </div>
+  `).join('') : `<div class="empty-note">No trucks yet.</div>`;
+
+  const equipWrap = document.getElementById('manageEquipment');
+  const sortedEquip = [...state.equipment].sort((a,b)=>a.name.localeCompare(b.name));
+  equipWrap.innerHTML = sortedEquip.length ? sortedEquip.map(e=>`
+    <div class="manage-row">
+      <div>
+        <div class="mname">${e.icon} ${e.name}</div>
+        <div class="msub">${e.missing ? 'Reported missing — resolve first' : (e.truckId ? 'On Truck '+e.truckId+' — return before removing' : 'At the shop')}</div>
+      </div>
+      <button class="remove-btn" ${(e.truckId||e.missing)?'disabled':''} onclick="removeEquipmentItem('${e.id}')" title="Remove">✕</button>
+    </div>
+  `).join('') : `<div class="empty-note">No equipment yet.</div>`;
+}
+
+function addTruck(){
+  const input = document.getElementById('newTruckNumber');
+  const num = parseInt(input.value, 10);
+  if(!num || num<=0){ showToast('Enter a valid truck number'); return; }
+  if(state.trucks.some(t=>t.id===num)){ showToast(`Truck ${num} already exists`); return; }
+  state.trucks.push({id:num, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null});
+  addLog('🛠️', `Truck ${num} added to the fleet`);
+  input.value = '';
+  saveState();
+  renderManage();
+  render();
+  showToast(`Truck ${num} added`);
+}
+
+function removeTruck(id){
+  const truck = state.trucks.find(t=>t.id===id);
+  if(!truck || truck.status==='out'){ showToast('Check the truck in before removing it'); return; }
+  state.trucks = state.trucks.filter(t=>t.id!==id);
+  addLog('🗑️', `Truck ${id} removed from the fleet`);
+  saveState();
+  renderManage();
+  render();
+  showToast(`Truck ${id} removed`);
+}
+
+function addEquipmentItem(){
+  const nameInput = document.getElementById('newEquipName');
+  const catSelect = document.getElementById('newEquipCategory');
+  const name = nameInput.value.trim();
+  if(!name){ showToast('Enter an equipment name'); return; }
+  const category = catSelect.value;
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-') + '-' + Date.now().toString(36);
+  const icon = category==='bag' ? '🎒' : '🧰';
+  state.equipment.push({id, name, icon, category, truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null});
+  addLog('🛠️', `${name} added to shop inventory`);
+  nameInput.value = '';
+  saveState();
+  renderManage();
+  render();
+  showToast(`${name} added`);
+}
+
+function removeEquipmentItem(id){
+  const item = state.equipment.find(e=>e.id===id);
+  if(!item || item.truckId || item.missing){ showToast('Resolve the item (return it or mark found) before removing it'); return; }
+  state.equipment = state.equipment.filter(e=>e.id!==id);
+  addLog('🗑️', `${item.name} removed from shop inventory`);
+  saveState();
+  renderManage();
+  render();
+  showToast(`${item.name} removed`);
+}
+
+function resolveMissingItem(id){
+  const item = state.equipment.find(e=>e.id===id);
+  if(!item) return;
+  item.missing = false;
+  item.missingSince = null;
+  item.missingReportedBy = null;
+  item.missingNote = null;
+  addLog('✅', `${item.name} found and returned to shop inventory`);
+  saveState();
+  render();
+  showToast(`${item.name} marked as found`);
+}
+
+/* Poll the shared backend so other people's phones/laptops show up here too.
+   Only runs once signed in; stops itself if the session has expired. */
+function startPolling(){
+  if(pollHandle) clearInterval(pollHandle);
+  pollHandle = setInterval(async ()=>{
+    try{
+      const res = await fetch('/api/state', {credentials:'same-origin'});
+      if(res.status===401){
+        clearInterval(pollHandle);
+        showLogin();
+        return;
+      }
+      const data = await res.json();
+      if(data && data.value){
+        const fresh = JSON.stringify(data.value);
+        if(fresh !== JSON.stringify(state)){
+          state = data.value;
+          if(!state.log) state.log = [];
+          render();
+        }
+      }
+    }catch(e){ /* silent — keep showing last known state until the network recovers */ }
+  }, 5000);
+}
+
+/* Auth / location gate */
+function setLocation(id, name){
+  currentLocationId = id;
+  currentLocationName = name;
+  const meta = LOCATIONS_UI.find(l=>l.id===id);
+  document.getElementById('brandMark').textContent = meta ? meta.abbr : 'GJ';
+  document.getElementById('locationTitle').textContent = name + ' Fleet Board';
+}
+
+function showApp(){
+  document.getElementById('authLoading').style.display = 'none';
+  document.getElementById('loginOverlay').classList.remove('show');
+  document.getElementById('appRoot').style.display = '';
+}
+
+function showLogin(){
+  document.getElementById('appRoot').style.display = 'none';
+  if(pollHandle) clearInterval(pollHandle);
+  const select = document.getElementById('loginLocationSelect');
+  if(!select.dataset.built){
+    LOCATIONS_UI.forEach(l=>{
+      const opt = document.createElement('option');
+      opt.value = l.id;
+      opt.textContent = l.name;
+      select.appendChild(opt);
+    });
+    select.dataset.built = '1';
+  }
+  select.value = '';
+  selectedLoginLocation = null;
+  document.getElementById('loginError').textContent = '';
+  resetPinBoxes();
+  document.getElementById('loginOverlay').classList.add('show');
+  focusPinBox(0);
+}
+
+function pinBoxes(){
+  return Array.from(document.querySelectorAll('.pin-box'));
+}
+
+function focusPinBox(idx){
+  const boxes = pinBoxes();
+  if(boxes[idx]) boxes[idx].focus();
+}
+
+function resetPinBoxes(){
+  pinBoxes().forEach(b=>{ b.value = ''; });
+}
+
+function getPinValue(){
+  return pinBoxes().map(b=>b.value).join('');
+}
+
+function handlePinInput(e){
+  const box = e.target;
+  const idx = Number(box.dataset.idx);
+  // Keep only the last digit typed, strip anything non-numeric (handles
+  // fast typing / autofill weirdness on some mobile keyboards).
+  const digit = box.value.replace(/[^0-9]/g,'').slice(-1);
+  box.value = digit;
+  if(digit && idx < pinBoxes().length - 1){
+    focusPinBox(idx + 1);
+  }
+  if(digit && idx === pinBoxes().length - 1 && getPinValue().length === pinBoxes().length){
+    submitLogin();
+  }
+}
+
+function handlePinKeydown(e){
+  const box = e.target;
+  const idx = Number(box.dataset.idx);
+  if(e.key === 'Backspace' && !box.value && idx > 0){
+    focusPinBox(idx - 1);
+  } else if(e.key === 'ArrowLeft' && idx > 0){
+    focusPinBox(idx - 1);
+  } else if(e.key === 'ArrowRight' && idx < pinBoxes().length - 1){
+    focusPinBox(idx + 1);
+  } else if(e.key === 'Enter'){
+    submitLogin();
+  }
+}
+
+function handlePinPaste(e){
+  const text = (e.clipboardData || window.clipboardData).getData('text');
+  const digits = text.replace(/[^0-9]/g,'').slice(0, pinBoxes().length).split('');
+  if(!digits.length) return;
+  e.preventDefault();
+  const boxes = pinBoxes();
+  digits.forEach((d, i)=>{ if(boxes[i]) boxes[i].value = d; });
+  const nextEmpty = boxes.findIndex(b=>!b.value);
+  focusPinBox(nextEmpty === -1 ? boxes.length - 1 : nextEmpty);
+  if(digits.length === boxes.length) submitLogin();
+}
+
+pinBoxes().forEach(box=>{
+  box.addEventListener('input', handlePinInput);
+  box.addEventListener('keydown', handlePinKeydown);
+  box.addEventListener('paste', handlePinPaste);
+});
+
+function selectLoginLocation(id){
+  selectedLoginLocation = id;
+}
+
+async function submitLogin(){
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  if(!selectedLoginLocation){ errEl.textContent = 'Choose a location'; return; }
+  const pw = getPinValue();
+  if(!/^\d{5}$/.test(pw)){ errEl.textContent = 'Enter all 5 digits'; return; }
+
+  const btn = document.getElementById('loginSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  try{
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({locationId: selectedLoginLocation, password: pw})
+    });
+    const data = await res.json();
+    if(res.ok && data.ok){
+      resetPinBoxes();
+      setLocation(data.locationId, data.locationName);
+      showApp();
+      await loadState();
+      startPolling();
+    } else {
+      errEl.textContent = data.error || 'Incorrect password';
+      resetPinBoxes();
+      focusPinBox(0);
+    }
+  }catch(e){
+    errEl.textContent = "Couldn't reach the server — try again";
+  }
+  btn.disabled = false;
+  btn.textContent = 'Enter';
+}
+
+async function switchLocation(){
+  try{ await fetch('/api/logout', {method:'POST', credentials:'same-origin'}); }catch(e){ /* ignore */ }
+  location.reload();
+}
+
+async function checkSessionAndInit(){
+  try{
+    const res = await fetch('/api/session', {credentials:'same-origin'});
+    const data = await res.json();
+    if(data.authenticated){
+      setLocation(data.locationId, data.locationName);
+      showApp();
+      await loadState();
+      startPolling();
+    } else {
+      showLogin();
+    }
+  }catch(e){
+    console.error('Session check failed', e);
+    showLogin();
+  }
+}
+
+checkSessionAndInit();
+</script>
+</body>
+</html>
