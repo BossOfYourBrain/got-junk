@@ -1,30 +1,44 @@
 // Serverless function backing the shared fleet board data.
-// Backed by the Upstash Redis store connected via Vercel's Storage tab
-// (Vercel KV as a separate product no longer exists -- Marketplace storage
-// runs on Upstash Redis, so we talk to it with @upstash/redis directly).
+// Backed by the Upstash Redis store connected via Vercel's Storage tab.
 //
 // Vercel injects GJSTORAGE_KV_REST_API_URL / GJSTORAGE_KV_REST_API_TOKEN
 // once the store is connected to this project (prefixed with the store's
-// name, "GJSTORAGE", since it's a named Marketplace integration rather
-// than a default unnamed one).
+// name, "GJSTORAGE", since it's a named Marketplace integration).
 
 import { Redis } from '@upstash/redis';
+import { getSession } from '../lib/auth.js';
 
 const redis = new Redis({
   url: process.env.GJSTORAGE_KV_REST_API_URL,
   token: process.env.GJSTORAGE_KV_REST_API_TOKEN,
 });
 
-const STATE_KEY = 'vi-fleet-state-v2';
+function stateKeyFor(locationId) {
+  return `vi-fleet-state-v3:${locationId}`;
+}
 
 export default async function handler(req, res) {
   // Belt-and-suspenders: keep this endpoint out of caches/indexes too.
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
 
+  // The location comes from the verified session cookie, never from the
+  // request body or a query param -- a signed-in user can only ever read
+  // or write their own location's data.
+  const session = getSession(req);
+  if (!session) {
+    res.status(401).json({ error: 'Not signed in' });
+    return;
+  }
+  const key = stateKeyFor(session.locationId);
+
   if (req.method === 'GET') {
     try {
-      const value = await redis.get(STATE_KEY);
-      res.status(200).json({ value: value || null });
+      const value = await redis.get(key);
+      res.status(200).json({
+        value: value || null,
+        locationId: session.locationId,
+        locationName: session.locationName,
+      });
     } catch (err) {
       console.error('Redis read failed', err);
       res.status(500).json({ error: 'Failed to read fleet state' });
@@ -39,7 +53,7 @@ export default async function handler(req, res) {
         res.status(400).json({ error: 'Invalid state payload' });
         return;
       }
-      await redis.set(STATE_KEY, body);
+      await redis.set(key, body);
       res.status(200).json({ ok: true });
     } catch (err) {
       console.error('Redis write failed', err);
