@@ -236,6 +236,11 @@
   }
   .fullness-pill.selected{border-color:var(--blue);background:#EEF4FC;color:var(--blue);}
   .checklist-grid{display:flex;flex-wrap:wrap;gap:8px;}
+  .checklist-more-btn{
+    display:block;margin-top:10px;background:none;border:none;color:var(--blue);
+    font-weight:700;font-size:12.5px;cursor:pointer;padding:4px 2px;font-family:'Inter',sans-serif;
+  }
+  .checklist-secondary{margin-top:8px;}
   .checklist-item{
     padding:9px 13px;border-radius:9px;border:1.5px solid var(--line);background:#fff;
     font-size:13px;font-weight:600;cursor:pointer;color:var(--ink);
@@ -566,7 +571,7 @@
     </div>
     <div class="field">
       <label>What's in the load? (select all that apply)</label>
-      <div class="checklist-grid" id="checklistGrid"></div>
+      <div id="checklistGrid"></div>
     </div>
     <div class="field">
       <label>Photo of the junk (required)</label>
@@ -641,7 +646,27 @@ let selectedLoginLocation = null;
 let pollHandle = null;
 
 const FULLNESS_LEVELS = ['Empty','1/4','1/2','3/4','Full'];
-const JUNK_CATEGORIES = ['Metal','Wood','Mattresses','Garbage','Paint/Hazard Waste','Electronics'];
+const JUNK_CATEGORIES_PRIMARY = ['Metal','Wood','Mattress','Garbage','Cardboard','Plastics','Electronics'];
+const JUNK_CATEGORIES_SECONDARY = ['Yard Waste','Batteries','Styrofoam','Paint / Hazardous Waste','Glass','Cement','Fridge / Stove'];
+
+function buildChecklistHTML(selectedSet){
+  const primaryHtml = JUNK_CATEGORIES_PRIMARY.map(cat=>
+    `<button type="button" class="checklist-item ${selectedSet.has(cat)?'selected':''}" data-cat="${cat}" onclick="toggleChecklistItem('${cat}')">${cat}</button>`
+  ).join('');
+  const secondaryHtml = JUNK_CATEGORIES_SECONDARY.map(cat=>
+    `<button type="button" class="checklist-item ${selectedSet.has(cat)?'selected':''}" data-cat="${cat}" onclick="toggleChecklistItem('${cat}')">${cat}</button>`
+  ).join('');
+  const hasSecondarySelected = JUNK_CATEGORIES_SECONDARY.some(c=>selectedSet.has(c));
+  return `
+    <div class="checklist-grid">${primaryHtml}</div>
+    <button type="button" class="checklist-more-btn" id="checklistMoreBtn" onclick="toggleChecklistMore()" style="${hasSecondarySelected?'display:none;':''}">+ More options</button>
+    <div class="checklist-grid checklist-secondary" id="checklistSecondaryGrid" style="display:${hasSecondarySelected?'flex':'none'};">${secondaryHtml}</div>`;
+}
+
+function toggleChecklistMore(){
+  document.getElementById('checklistSecondaryGrid').style.display = 'flex';
+  document.getElementById('checklistMoreBtn').style.display = 'none';
+}
 function fullnessBand(level){
   if(level==='Empty' || level==='1/4') return 'f-low';
   if(level==='Full') return 'f-high';
@@ -1224,9 +1249,7 @@ function openCheckIn(truckId){
     `<button type="button" class="fullness-pill" data-level="${level}" onclick="selectFullness('${level}')">${level}</button>`
   ).join('');
 
-  document.getElementById('checklistGrid').innerHTML = JUNK_CATEGORIES.map(cat=>
-    `<button type="button" class="checklist-item" data-cat="${cat}" onclick="toggleChecklistItem('${cat}')">${cat}</button>`
-  ).join('');
+  document.getElementById('checklistGrid').innerHTML = buildChecklistHTML(selectedChecklist);
 
   document.getElementById('photoPreview').style.display = 'none';
   document.getElementById('photoHint').style.display = 'block';
@@ -1407,9 +1430,7 @@ function openEodEdit(truckId){
     `<button type="button" class="fullness-pill ${level===selectedFullness?'selected':''}" data-level="${level}" onclick="selectFullness('${level}')">${level}</button>`
   ).join('');
 
-  document.getElementById('checklistGrid').innerHTML = JUNK_CATEGORIES.map(cat=>
-    `<button type="button" class="checklist-item ${selectedChecklist.has(cat)?'selected':''}" data-cat="${cat}" onclick="toggleChecklistItem('${cat}')">${cat}</button>`
-  ).join('');
+  document.getElementById('checklistGrid').innerHTML = buildChecklistHTML(selectedChecklist);
 
   const preview = document.getElementById('photoPreview');
   const hint = document.getElementById('photoHint');
