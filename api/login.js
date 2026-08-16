@@ -1,4 +1,4 @@
-import { LOCATIONS, makeToken, SESSION_COOKIE, SESSION_MAX_AGE } from '../lib/auth.js';
+import { LOCATIONS, makeToken, getLocationPassword, SESSION_COOKIE, SESSION_MAX_AGE } from '../lib/auth.js';
 
 export default async function handler(req, res) {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
@@ -19,28 +19,30 @@ export default async function handler(req, res) {
       return;
     }
 
-    const expected = process.env[loc.envVar];
-    if (!expected) {
-      // Password env var not set for this location yet — fail closed, not open.
-      console.error(`Missing env var ${loc.envVar} for location ${locationId}`);
-      res.status(500).json({ error: 'Location is not configured yet — contact your admin' });
-      return;
-    }
+    const pw = String(password || '').trim();
+    const adminPw = await getLocationPassword(locationId, 'admin');
+    const generalPw = await getLocationPassword(locationId, 'general');
 
-    if (String(password || '').trim() !== String(expected).trim()) {
+    // Check admin first: if a location's admin and general codes were ever
+    // set to the same value, the more privileged role wins rather than
+    // silently locking someone into the lower-access one.
+    let role = null;
+    if (adminPw && pw === String(adminPw).trim()) role = 'admin';
+    else if (generalPw && pw === String(generalPw).trim()) role = 'general';
+
+    if (!role) {
       res.status(401).json({ error: 'Incorrect password' });
       return;
     }
 
-    const token = makeToken(locationId);
-    // Secure requires HTTPS — true on every Vercel deployment (including previews).
+    const token = makeToken(locationId, role);
     res.setHeader(
       'Set-Cookie',
       `${SESSION_COOKIE}=${token}; Max-Age=${SESSION_MAX_AGE}; Path=/; HttpOnly; Secure; SameSite=Lax`
     );
-    res.status(200).json({ ok: true, locationId, locationName: loc.name });
+    res.status(200).json({ ok: true, locationId, locationName: loc.name, role });
   } catch (err) {
-    console.error('Login error', err);
-    res.status(500).json({ error: 'Login failed' });
+    console.error('LOGIN ROUTE ERROR:', err);
+    res.status(500).json({ error: 'Login failed', detail: String(err && err.message || err) });
   }
 }
