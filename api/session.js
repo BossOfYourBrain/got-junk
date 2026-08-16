@@ -11,5 +11,6 @@ export default async function handler(req, res) {
     authenticated: true,
     locationId: session.locationId,
     locationName: session.locationName,
+    role: session.role,
   });
 }
