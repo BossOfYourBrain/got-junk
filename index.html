@@ -275,7 +275,7 @@
     width:32px;height:32px;border-radius:8px;background:var(--blue-deep);color:#fff;flex-shrink:0;
     display:flex;align-items:center;justify-content:center;font-family:'Archivo Black',sans-serif;font-size:14px;
   }
-  .ops-truck-label{font-size:12.5px;font-weight:800;}
+  .ops-truck-label{font-size:12.5px;font-weight:800;flex:1;}
   .ops-fullness{
     align-self:flex-start;padding:3px 9px;border-radius:99px;font-size:10.5px;font-weight:800;
     text-transform:uppercase;letter-spacing:.03em;
@@ -777,8 +777,8 @@ function defaultState(locationId){
     trucks: preset.trucks.map(id=>({id, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null})),
     equipment: preset.equipment.map(([name,icon,category])=>({
       id: name.toLowerCase().replace(/[^a-z0-9]+/g,'-'),
-      name, icon, category, truckId:null, lastUser:null, lastAction:null, lastTs:null,
-      missing:false, missingSince:null, missingReportedBy:null, missingNote:null
+      name, icon, category, truckId:null, lastUser:null, lastUserPassenger:null, lastAction:null, lastTs:null,
+      missing:false, missingSince:null, missingReportedBy:null, missingReportedByPassenger:null, missingNote:null
     })),
     log: []
   };
@@ -800,7 +800,9 @@ async function loadState(){
         if(e.missing===undefined) e.missing = false;
         if(e.missingSince===undefined) e.missingSince = null;
         if(e.missingReportedBy===undefined) e.missingReportedBy = null;
+        if(e.missingReportedByPassenger===undefined) e.missingReportedByPassenger = null;
         if(e.missingNote===undefined) e.missingNote = null;
+        if(e.lastUserPassenger===undefined) e.lastUserPassenger = null;
       });
     } else {
       state = defaultState(currentLocationId);
@@ -983,16 +985,28 @@ function renderShop(){
   return html;
 }
 
+function crewLabel(driver, passenger){
+  if(!driver) return null;
+  return passenger ? `${driver} / ${passenger}` : driver;
+}
+
 function shopRow(e,kind){
   let sub, pillLabel, pillClass;
   if(kind==='missing'){
-    sub = `Missing since ${dateTimeShort(e.missingSince)}${e.missingReportedBy?' — reported by '+e.missingReportedBy:''}${e.missingNote?' — "'+escapeHtml(e.missingNote)+'"':''}`;
+    const reporter = crewLabel(e.missingReportedBy, e.missingReportedByPassenger);
+    sub = `Missing since ${dateTimeShort(e.missingSince)}${reporter?' — reported by '+reporter:''}${e.missingNote?' — "'+escapeHtml(e.missingNote)+'"':''}`;
     pillLabel = 'Missing'; pillClass = 'missing';
   } else if(kind==='out'){
-    sub = `On Truck ${e.truckId}` + (e.lastUser ? ` — taken by ${e.lastUser}` : '');
+    // Read the truck's current crew live rather than a stored snapshot, so
+    // equipment added to the truck mid-day (by someone other than the
+    // driver) still shows the actual crew who's accountable for it.
+    const truck = state.trucks.find(tk=>tk.id===e.truckId);
+    const crew = truck ? crewLabel(truck.driver, truck.passenger) : crewLabel(e.lastUser, e.lastUserPassenger);
+    sub = `On Truck ${e.truckId}` + (crew ? ` — taken by ${crew}` : '');
     pillLabel = 'In use'; pillClass = 'out';
   } else {
-    sub = e.lastUser ? `At the shop — last used by ${e.lastUser}` : 'At the shop';
+    const lastCrew = crewLabel(e.lastUser, e.lastUserPassenger);
+    sub = lastCrew ? `At the shop — last used by ${lastCrew}` : 'At the shop';
     pillLabel = 'Ready'; pillClass = 'avail';
   }
   const foundBtn = kind==='missing' ? `<button class="missing-found-btn" onclick="resolveMissingItem('${e.id}')">Mark found</button>` : '';
@@ -1043,7 +1057,7 @@ function renderOps(){
   if(missingEquip.length){
     html += `<div class="ops-missing-summary">
       <div class="oms-title">Missing equipment — ${missingEquip.length}</div>
-      ${missingEquip.map(e=>`<div class="oms-item">${e.icon} ${e.name} <span class="ops-missing-chip">${e.missingReportedBy||'Unknown'} · ${dateTimeShort(e.missingSince)}</span></div>`).join('')}
+      ${missingEquip.map(e=>`<div class="oms-item">${e.icon} ${e.name} <span class="ops-missing-chip">${crewLabel(e.missingReportedBy, e.missingReportedByPassenger)||'Unknown'} · ${dateTimeShort(e.missingSince)}</span></div>`).join('')}
     </div>`;
   }
   html += `<div class="ops-note">Sorted fullest-first — those trucks need a dump run or consolidation before rolling out. Empty trucks near the bottom can head straight to the next job. Tap Edit on any card to fix a missed detail.</div>`;
@@ -1055,15 +1069,18 @@ function renderOps(){
 
 function opsCard(t){
   const problemFlag = t.problem ? `<div class="ops-problem-flag">🚨 Problem reported</div>` : '';
+  const statusPill = t.status==='out'
+    ? `<span class="pill out">Out</span>` : `<span class="pill avail">Available</span>`;
   if(!t.lastEod){
     return `
     <div class="ops-card">
       <div class="ops-card-head">
         <div class="ops-badge">${t.id}</div>
         <div class="ops-truck-label">Truck ${t.id}</div>
+        ${statusPill}
       </div>
       ${problemFlag}
-      <div class="ops-empty">No end-of-day data yet${t.status==='out'?' — still out':''}</div>
+      <div class="ops-empty">No end-of-day data yet</div>
     </div>`;
   }
   const eod = t.lastEod;
@@ -1078,13 +1095,14 @@ function opsCard(t){
     <div class="ops-card-head">
       <div class="ops-badge">${t.id}</div>
       <div class="ops-truck-label">Truck ${t.id}</div>
+      ${statusPill}
     </div>
     <span class="ops-fullness ${fullnessBand(eod.fullness)}">${eod.fullness}</span>
     ${problemFlag}
     ${missingFlag}
     ${photo}
     <div class="ops-chips">${chips}</div>
-    <div class="ops-sub">${eod.passenger ? eod.submittedBy+' / '+eod.passenger : (eod.submittedBy||'Unknown')} · ${timeShort(eod.submittedAt)}</div>
+    <div class="ops-sub">${crewLabel(eod.submittedBy, eod.passenger)||'Unknown'} · ${timeShort(eod.submittedAt)}</div>
     ${editedNote}
     <div class="ops-btn-row">
       <button class="ops-edit-btn" onclick="openEodEdit(${t.id})">✏️ Edit</button>
@@ -1150,6 +1168,7 @@ function submitCheckout(){
     if(item){
       item.truckId = checkoutTruckId;
       item.lastUser = driver;
+      item.lastUserPassenger = passenger || null;
       item.lastAction = 'checked out';
       item.lastTs = now;
       names.push(item.name);
@@ -1385,11 +1404,13 @@ function submitCheckIn(){
     const status = selectedEquipStatus.get(e.id);
     e.truckId = null;
     e.lastUser = driverName;
+    e.lastUserPassenger = passengerName || null;
     e.lastTs = now;
     if(status==='missing'){
       e.missing = true;
       e.missingSince = now;
       e.missingReportedBy = driverName;
+      e.missingReportedByPassenger = passengerName || null;
       e.missingNote = missingNote;
       e.lastAction = 'reported missing';
       missing.push(e.name);
@@ -1545,6 +1566,7 @@ function submitEodEdit(truck){
       eq.missing = true;
       eq.missingSince = now;
       eq.missingReportedBy = editedBy || eod.submittedBy;
+      eq.missingReportedByPassenger = editedBy ? null : (eod.passenger || null);
       eq.missingNote = missingNote;
       eq.lastAction = 'reported missing';
       eq.lastTs = now;
@@ -1554,9 +1576,11 @@ function submitEodEdit(truck){
       eq.missing = false;
       eq.missingSince = null;
       eq.missingReportedBy = null;
+      eq.missingReportedByPassenger = null;
       eq.missingNote = null;
       eq.lastAction = 'returned';
       eq.lastUser = editedBy || eod.submittedBy;
+      eq.lastUserPassenger = editedBy ? null : (eod.passenger || null);
       eq.lastTs = now;
       returnedNames.push(m.name);
       return {...m, status:'returned'};
@@ -1672,7 +1696,7 @@ function addEquipmentItem(){
   const category = catSelect.value;
   const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-') + '-' + Date.now().toString(36);
   const icon = category==='bag' ? '🎒' : '🧰';
-  state.equipment.push({id, name, icon, category, truckId:null, lastUser:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingNote:null});
+  state.equipment.push({id, name, icon, category, truckId:null, lastUser:null, lastUserPassenger:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingReportedByPassenger:null, missingNote:null});
   addLog('🛠️', `${name} added to shop inventory`);
   nameInput.value = '';
   saveState();
@@ -1698,6 +1722,7 @@ function resolveMissingItem(id){
   item.missing = false;
   item.missingSince = null;
   item.missingReportedBy = null;
+  item.missingReportedByPassenger = null;
   item.missingNote = null;
   addLog('✅', `${item.name} found and returned to shop inventory`);
   saveState();
