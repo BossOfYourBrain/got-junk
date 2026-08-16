@@ -241,6 +241,14 @@
     font-weight:700;font-size:12.5px;cursor:pointer;padding:4px 2px;font-family:'Inter',sans-serif;
   }
   .checklist-secondary{margin-top:8px;}
+  .pw-reset-row{display:flex;gap:8px;}
+  .pw-reset-input{
+    flex:1;padding:12px 13px;border-radius:10px;border:1.5px solid var(--line);
+    font-size:15px;font-weight:700;letter-spacing:.2em;text-align:center;
+    font-family:'Inter',sans-serif;background:#FAFBFC;color:var(--ink);
+  }
+  .pw-reset-input:focus{outline:none;border-color:var(--blue);background:#fff;}
+  .pw-reset-btn{flex:none;padding:12px 18px;}
   .checklist-item{
     padding:9px 13px;border-radius:9px;border:1.5px solid var(--line);background:#fff;
     font-size:13px;font-weight:600;cursor:pointer;color:var(--ink);
@@ -281,9 +289,15 @@
   .ops-sub{font-size:10.5px;color:var(--ink-soft);}
   .ops-empty{font-size:12px;color:var(--ink-soft);font-style:italic;padding:6px 0;}
   .ops-problem-flag{font-size:11px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:4px;}
+  .ops-btn-row{display:flex;gap:6px;margin-top:4px;}
   .ops-edit-btn{
-    margin-top:4px;width:100%;padding:8px;border-radius:8px;border:1.5px solid var(--blue);
+    flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--blue);
     background:#fff;color:var(--blue);font-size:11.5px;font-weight:700;cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .ops-clear-btn{
+    flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--red);
+    background:#fff;color:var(--red);font-size:11.5px;font-weight:700;cursor:pointer;
     font-family:'Inter',sans-serif;
   }
 
@@ -439,9 +453,10 @@
       <div class="header-menu-wrap" id="headerMenuWrap">
         <button class="settings-btn" onclick="toggleHeaderMenu()" title="More options">▾</button>
         <div class="header-menu" id="headerMenu">
-          <button class="header-menu-item" onclick="headerMenuAction('configure')">⚙ Configure Fleet</button>
+          <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('configure')">⚙ Configure Fleet</button>
+          <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('passwords')">🔑 Passwords</button>
+          <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('log')">🧾 Log</button>
           <button class="header-menu-item" onclick="headerMenuAction('switch')">↔ Switch Location</button>
-          <button class="header-menu-item" onclick="headerMenuAction('log')">🧾 Log</button>
         </div>
       </div>
     </div>
@@ -490,6 +505,34 @@
     <div class="sheet-submit">
       <button class="btn btn-primary" id="loginSubmitBtn" onclick="submitLogin()">Enter</button>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="passwordsOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-title">Reset Passwords</div>
+      <button class="sheet-close" onclick="closeSheet('passwordsOverlay')">✕</button>
+    </div>
+    <div class="login-sub">Resets apply immediately to this location. Share the new code with your team.</div>
+
+    <div class="field">
+      <label>General Password</label>
+      <div class="pw-reset-row">
+        <input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="5" id="newGeneralPwInput" class="pw-reset-input" placeholder="5-digit code">
+        <button class="btn btn-primary pw-reset-btn" onclick="resetPassword('general')">Save</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Admin Password</label>
+      <div class="pw-reset-row">
+        <input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="5" id="newAdminPwInput" class="pw-reset-input" placeholder="5-digit code">
+        <button class="btn btn-primary pw-reset-btn" onclick="resetPassword('admin')">Save</button>
+      </div>
+    </div>
+
+    <div class="login-error" id="passwordsError"></div>
   </div>
 </div>
 
@@ -641,6 +684,7 @@ let pendingEodPhoto = null;
 let selectedEquipStatus = new Map();
 let eodEditMode = false;
 let currentLocationId = null;
+let currentRole = null;
 let currentLocationName = null;
 let selectedLoginLocation = null;
 let pollHandle = null;
@@ -1042,7 +1086,10 @@ function opsCard(t){
     <div class="ops-chips">${chips}</div>
     <div class="ops-sub">${eod.passenger ? eod.submittedBy+' / '+eod.passenger : (eod.submittedBy||'Unknown')} · ${timeShort(eod.submittedAt)}</div>
     ${editedNote}
-    <button class="ops-edit-btn" onclick="openEodEdit(${t.id})">✏️ Edit</button>
+    <div class="ops-btn-row">
+      <button class="ops-edit-btn" onclick="openEodEdit(${t.id})">✏️ Edit</button>
+      ${(eod.photo && currentRole==='admin') ? `<button class="ops-clear-btn" onclick="clearEod(${t.id})">🧹 Clear</button>` : ''}
+    </div>
   </div>`;
 }
 
@@ -1387,6 +1434,19 @@ function submitCheckIn(){
 }
 
 /* Editing an already-submitted end-of-day entry from the EOD tab */
+/* Admin-only: wipe a truck's end-of-day entry entirely */
+function clearEod(truckId){
+  if(currentRole !== 'admin'){ showToast('Admins only'); return; }
+  const truck = state.trucks.find(t=>t.id===truckId);
+  if(!truck || !truck.lastEod) return;
+  if(!confirm(`Clear end-of-day data for Truck ${truckId}? This can't be undone.`)) return;
+  truck.lastEod = null;
+  addLog('🧹', `Truck ${truckId} end-of-day cleared by admin`);
+  saveState();
+  render();
+  showToast(`Truck ${truckId} end-of-day cleared`);
+}
+
 function openEodEdit(truckId){
   const truck = state.trucks.find(t=>t.id===truckId);
   if(!truck || !truck.lastEod) return;
@@ -1548,6 +1608,7 @@ function closeLightbox(event){
 
 /* Manage / configure */
 function openManage(){
+  if(currentRole !== 'admin'){ showToast('Admins only'); return; }
   renderManage();
   document.getElementById('manageOverlay').classList.add('show');
 }
@@ -1670,12 +1731,16 @@ function startPolling(){
 }
 
 /* Auth / location gate */
-function setLocation(id, name){
+function setLocation(id, name, role){
   currentLocationId = id;
   currentLocationName = name;
+  currentRole = role;
   const meta = LOCATIONS_UI.find(l=>l.id===id);
   document.getElementById('brandMark').textContent = meta ? meta.abbr : 'GJ';
   document.getElementById('locationTitle').textContent = name + ' Fleet Board';
+  document.querySelectorAll('.admin-only-menu-item').forEach(el=>{
+    el.style.display = role==='admin' ? 'flex' : 'none';
+  });
 }
 
 function showApp(){
@@ -1793,7 +1858,7 @@ async function submitLogin(){
     const data = await res.json();
     if(res.ok && data.ok){
       resetPinBoxes();
-      setLocation(data.locationId, data.locationName);
+      setLocation(data.locationId, data.locationName, data.role);
       showApp();
       await loadState();
       startPolling();
@@ -1828,12 +1893,51 @@ function headerMenuAction(action){
   if(action==='configure') openManage();
   else if(action==='switch') switchLocation();
   else if(action==='log') openLogTab();
+  else if(action==='passwords') openPasswords();
 }
 
 function openLogTab(){
+  if(currentRole !== 'admin'){ showToast('Admins only'); return; }
   activeTab = 'log';
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   render();
+}
+
+function openPasswords(){
+  if(currentRole !== 'admin'){ showToast('Admins only'); return; }
+  document.getElementById('newGeneralPwInput').value = '';
+  document.getElementById('newAdminPwInput').value = '';
+  document.getElementById('passwordsError').textContent = '';
+  document.getElementById('passwordsOverlay').classList.add('show');
+}
+
+async function resetPassword(role){
+  const inputId = role==='admin' ? 'newAdminPwInput' : 'newGeneralPwInput';
+  const input = document.getElementById(inputId);
+  const errEl = document.getElementById('passwordsError');
+  errEl.textContent = '';
+  const pw = input.value.trim();
+  if(!/^\d{5}$/.test(pw)){
+    errEl.textContent = 'Enter exactly 5 digits';
+    return;
+  }
+  try{
+    const res = await fetch('/api/set-password', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({role, newPassword: pw})
+    });
+    const data = await res.json();
+    if(res.ok && data.ok){
+      input.value = '';
+      showToast(`${role==='admin' ? 'Admin' : 'General'} password updated`);
+    } else {
+      errEl.textContent = data.error || 'Could not reset password';
+    }
+  }catch(e){
+    errEl.textContent = "Couldn't reach the server — try again";
+  }
 }
 
 document.addEventListener('click', (e)=>{
@@ -1849,7 +1953,7 @@ async function checkSessionAndInit(){
     const res = await fetch('/api/session', {credentials:'same-origin'});
     const data = await res.json();
     if(data.authenticated){
-      setLocation(data.locationId, data.locationName);
+      setLocation(data.locationId, data.locationName, data.role);
       showApp();
       await loadState();
       startPolling();
