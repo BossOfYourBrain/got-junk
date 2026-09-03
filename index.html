@@ -486,7 +486,7 @@
           <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('configure')">⚙ Configure Fleet</button>
           <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('expenselocations')">💰 Expense Locations</button>
           <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('passwords')">🔑 Passwords</button>
-          <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('log')">🧾 Log</button>
+          <button class="header-menu-item" onclick="headerMenuAction('log')">🧾 Log</button>
           <button class="header-menu-item" onclick="headerMenuAction('switch')">↔ Switch Location</button>
         </div>
       </div>
@@ -2267,7 +2267,6 @@ function headerMenuAction(action){
 }
 
 function openLogTab(){
-  if(currentRole !== 'admin'){ showToast('Admins only'); return; }
   activeTab = 'log';
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   render();
