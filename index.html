@@ -206,6 +206,11 @@
     font-size:14px;cursor:pointer;flex-shrink:0;
   }
   .remove-btn:disabled{opacity:.35;cursor:not-allowed;}
+  .rename-btn{
+    width:28px;height:28px;border-radius:8px;border:none;background:#EEF4FC;color:var(--blue);
+    font-size:13px;cursor:pointer;flex-shrink:0;
+  }
+  .manage-row-actions{display:flex;gap:6px;flex-shrink:0;}
   .add-form{display:flex;gap:8px;margin-top:8px;}
   .add-form input,.add-form select{flex:1;}
   .add-form .btn{flex:none;width:auto;padding:10px 14px;}
@@ -433,6 +438,10 @@
   }
   .login-location-select:focus{outline:none;border-color:var(--blue);background-color:#fff;}
   .login-error{color:var(--red);font-size:12.5px;font-weight:600;min-height:16px;margin-bottom:4px;}
+  .swap-preview-row{
+    background:#EEF4FC;border-radius:8px;padding:9px 11px;margin-top:8px;
+    font-size:12.5px;font-weight:600;color:var(--blue-deep);
+  }
   .pin-row{display:flex;gap:8px;justify-content:center;}
   .pin-box{
     width:100%;max-width:52px;aspect-ratio:1/1;text-align:center;font-size:22px;font-weight:800;
@@ -685,6 +694,25 @@
     </div>
     <div class="sheet-submit">
       <button class="btn btn-primary" onclick="submitCheckIn()">Complete check-in</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="swapOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-title" id="swapTitle">Swap Truck</div>
+      <button class="sheet-close" onclick="closeSheet('swapOverlay')">✕</button>
+    </div>
+    <div class="login-sub">Trade crews and currently checked-out equipment between two trucks in the field. Checked-out time and any truck problems stay with each vehicle.</div>
+    <div class="field">
+      <label>Swap with</label>
+      <select class="login-location-select" id="swapTargetSelect"></select>
+    </div>
+    <div id="swapPreview"></div>
+    <div class="login-error" id="swapError"></div>
+    <div class="sheet-submit">
+      <button class="btn btn-primary" onclick="submitSwap()">Confirm Swap</button>
     </div>
   </div>
 </div>
@@ -1111,11 +1139,12 @@ function truckCardOut(t){
       ${problemBlock(t)}
       ${chips}
       <div class="btn-row">
-        <button class="btn btn-outline" onclick="openAddEquip(${t.id})">+ Add equipment</button>
         <button class="btn btn-outline" onclick="openAddExpense(${t.id})">💵 Expense</button>
+        <button class="btn btn-danger-outline" onclick="openCheckIn(${t.id})">Check in</button>
       </div>
       <div class="btn-row" style="margin-top:8px;">
-        <button class="btn btn-danger-outline" onclick="openCheckIn(${t.id})">Check in</button>
+        <button class="btn btn-ghost" onclick="openAddEquip(${t.id})">+ Equipment</button>
+        <button class="btn btn-ghost" onclick="openSwapTruck(${t.id})">🔀 Swap</button>
       </div>
     </div>
   </div>`;
@@ -1753,6 +1782,72 @@ function submitExpense(){
   showToast(`Expense added — Truck ${expenseTruckId}`);
 }
 
+/* Swap Truck — trade crews and currently checked-out equipment between two
+   Out trucks. Checked-out time, truck problems, and expense history all
+   stay with each vehicle since they're keyed to the truck, not the driver. */
+let swapSourceTruckId = null;
+
+function openSwapTruck(truckId){
+  swapSourceTruckId = truckId;
+  document.getElementById('swapTitle').textContent = 'Swap Truck ' + truckId;
+  document.getElementById('swapError').textContent = '';
+  document.getElementById('swapPreview').innerHTML = '';
+  const select = document.getElementById('swapTargetSelect');
+  const others = state.trucks.filter(t=>t.status==='out' && t.id!==truckId);
+  select.innerHTML = others.length
+    ? `<option value="" disabled selected>Choose a truck…</option>` +
+      others.map(t=>`<option value="${t.id}">Truck ${t.id} — ${crewLabel(t.driver,t.passenger)||'Unknown crew'}</option>`).join('')
+    : `<option value="" disabled selected>No other trucks are out right now</option>`;
+  document.getElementById('swapOverlay').classList.add('show');
+}
+
+document.getElementById('swapTargetSelect').addEventListener('change', function(){
+  const targetId = Number(this.value);
+  const source = state.trucks.find(t=>t.id===swapSourceTruckId);
+  const target = state.trucks.find(t=>t.id===targetId);
+  const preview = document.getElementById('swapPreview');
+  if(!source || !target){ preview.innerHTML = ''; return; }
+  preview.innerHTML = `
+    <div class="swap-preview-row">${crewLabel(source.driver,source.passenger)||'Unknown crew'} → moves to Truck ${target.id}</div>
+    <div class="swap-preview-row">${crewLabel(target.driver,target.passenger)||'Unknown crew'} → moves to Truck ${source.id}</div>`;
+});
+
+function submitSwap(){
+  const errEl = document.getElementById('swapError');
+  errEl.textContent = '';
+  const targetId = Number(document.getElementById('swapTargetSelect').value);
+  if(!targetId){ errEl.textContent = 'Choose a truck to swap with'; return; }
+
+  const source = state.trucks.find(t=>t.id===swapSourceTruckId);
+  const target = state.trucks.find(t=>t.id===targetId);
+  if(!source || !target || source.status!=='out' || target.status!=='out'){
+    errEl.textContent = 'Both trucks must currently be out';
+    return;
+  }
+
+  const sourceCrew = crewLabel(source.driver, source.passenger) || 'Unknown crew';
+  const targetCrew = crewLabel(target.driver, target.passenger) || 'Unknown crew';
+
+  const tempDriver = source.driver, tempPassenger = source.passenger;
+  source.driver = target.driver;
+  source.passenger = target.passenger;
+  target.driver = tempDriver;
+  target.passenger = tempPassenger;
+
+  // checkedOutAt and problem intentionally untouched -- tied to the vehicle, not the crew.
+  state.equipment.forEach(e=>{
+    if(e.truckId === source.id) e.truckId = target.id;
+    else if(e.truckId === target.id) e.truckId = source.id;
+  });
+
+  addLog('🔀', `Truck ${source.id} and Truck ${target.id} swapped crews — ${sourceCrew} now on Truck ${target.id}, ${targetCrew} now on Truck ${source.id}`);
+
+  closeSheet('swapOverlay');
+  saveState();
+  render();
+  showToast(`Trucks ${source.id} and ${target.id} swapped`);
+}
+
 /* Per-truck expense history drill-down (EOD tab) */
 let expenseHistoryTruckId = null;
 let expenseHistoryExpanded = false;
@@ -2092,7 +2187,10 @@ function renderManage(){
           ? `<button class="shop-issue-btn" onclick="openEquipIssueView('${e.id}')">⚠️ ${escapeHtml(e.issue.text.length>44?e.issue.text.slice(0,44)+'…':e.issue.text)}</button>`
           : `<button class="add-issue-btn" onclick="openEquipIssueView('${e.id}')">+ Report Issue</button>`}
       </div>
-      <button class="remove-btn" ${(e.truckId||e.missing)?'disabled':''} onclick="removeEquipmentItem('${e.id}')" title="Remove">✕</button>
+      <div class="manage-row-actions">
+        <button class="rename-btn" onclick="renameEquipmentItem('${e.id}')" title="Rename">✏️</button>
+        <button class="remove-btn" ${(e.truckId||e.missing)?'disabled':''} onclick="removeEquipmentItem('${e.id}')" title="Remove">✕</button>
+      </div>
     </div>
   `).join('') : `<div class="empty-note">No equipment yet.</div>`;
 }
@@ -2148,6 +2246,32 @@ function removeEquipmentItem(id){
   renderManage();
   render();
   showToast(`${item.name} removed`);
+}
+
+// The equipment's id is a fixed slug assigned once at creation and never
+// recomputed from the name -- everything else (truck manifests, pickers,
+// the shop list) references items by that id, so renaming here is safe
+// and won't break any existing link. Past log/EOD entries keep whatever
+// name they captured at the time, same as the rest of the app's history.
+function renameEquipmentItem(id){
+  const item = state.equipment.find(e=>e.id===id);
+  if(!item) return;
+  const newName = prompt('Rename this equipment:', item.name);
+  if(newName===null) return;
+  const trimmed = newName.trim();
+  if(!trimmed){ showToast('Name cannot be empty'); return; }
+  if(trimmed === item.name) return;
+  if(state.equipment.some(e=>e.id!==id && e.name.toLowerCase()===trimmed.toLowerCase())){
+    showToast('Another item already has that name');
+    return;
+  }
+  const oldName = item.name;
+  item.name = trimmed;
+  addLog('✏️', `${oldName} renamed to ${trimmed}`);
+  saveState();
+  renderManage();
+  render();
+  showToast(`Renamed to ${trimmed}`);
 }
 
 function resolveMissingItem(id){
