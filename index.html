@@ -185,6 +185,11 @@
     border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;text-align:left;
     max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Inter',sans-serif;
   }
+  .add-issue-btn{
+    display:block;margin-top:4px;background:#fff;color:var(--amber);border:1.5px dashed var(--amber);
+    border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;text-align:left;
+    font-family:'Inter',sans-serif;
+  }
   .empty-note{font-size:13px;color:var(--ink-soft);padding:10px 2px;}
   .sheet-submit{margin-top:16px;}
   .sheet-submit .btn{width:100%;padding:14px;font-size:15px;}
@@ -2083,7 +2088,9 @@ function renderManage(){
       <div>
         <div class="mname">${e.icon} ${e.name}</div>
         <div class="msub">${e.missing ? 'Reported missing — resolve first' : (e.truckId ? 'On Truck '+e.truckId+' — return before removing' : 'At the shop')}</div>
-        ${e.issue ? `<button class="shop-issue-btn" onclick="openEquipIssueView('${e.id}')">⚠️ ${escapeHtml(e.issue.text.length>44?e.issue.text.slice(0,44)+'…':e.issue.text)}</button>` : ''}
+        ${e.issue
+          ? `<button class="shop-issue-btn" onclick="openEquipIssueView('${e.id}')">⚠️ ${escapeHtml(e.issue.text.length>44?e.issue.text.slice(0,44)+'…':e.issue.text)}</button>`
+          : `<button class="add-issue-btn" onclick="openEquipIssueView('${e.id}')">+ Report Issue</button>`}
       </div>
       <button class="remove-btn" ${(e.truckId||e.missing)?'disabled':''} onclick="removeEquipmentItem('${e.id}')" title="Remove">✕</button>
     </div>
@@ -2161,17 +2168,48 @@ function resolveMissingItem(id){
    Configure Fleet, and the equipment pickers wherever this item appears. */
 function openEquipIssueView(itemId){
   const item = state.equipment.find(e=>e.id===itemId);
-  if(!item || !item.issue) return;
+  if(!item) return;
   document.getElementById('equipIssueTitle').textContent = `${item.icon} ${item.name}`;
-  document.getElementById('equipIssueBody').innerHTML = `
-    <div class="problem-view">
-      <div class="ptxt">${escapeHtml(item.issue.text)}</div>
-      <div class="pmeta">Reported${item.issue.reportedBy?' by '+escapeHtml(item.issue.reportedBy):''} · ${dateTimeShort(item.issue.reportedAt)}</div>
-    </div>
-    <div class="sheet-submit">
-      <button class="btn btn-primary" onclick="resolveEquipIssue('${itemId}')">Mark resolved</button>
-    </div>`;
+  const body = document.getElementById('equipIssueBody');
+  if(item.issue){
+    body.innerHTML = `
+      <div class="problem-view">
+        <div class="ptxt">${escapeHtml(item.issue.text)}</div>
+        <div class="pmeta">Reported${item.issue.reportedBy?' by '+escapeHtml(item.issue.reportedBy):''} · ${dateTimeShort(item.issue.reportedAt)}</div>
+      </div>
+      <div class="sheet-submit">
+        <button class="btn btn-primary" onclick="resolveEquipIssue('${itemId}')">Mark resolved</button>
+      </div>`;
+  } else {
+    body.innerHTML = `
+      <div class="field">
+        <label>What's wrong?</label>
+        <textarea id="equipIssueTextInput" placeholder="e.g. No blades left for this saw"></textarea>
+      </div>
+      <div class="field">
+        <label>Your name (optional)</label>
+        <input type="text" id="equipIssueNameInput" placeholder="e.g. Tom">
+      </div>
+      <div class="sheet-submit">
+        <button class="btn btn-primary" onclick="submitEquipIssue('${itemId}')">Report Issue</button>
+      </div>`;
+  }
   document.getElementById('equipIssueOverlay').classList.add('show');
+}
+
+function submitEquipIssue(itemId){
+  const item = state.equipment.find(e=>e.id===itemId);
+  if(!item) return;
+  const text = document.getElementById('equipIssueTextInput').value.trim();
+  if(!text){ showToast('Describe the issue'); return; }
+  const name = document.getElementById('equipIssueNameInput').value.trim();
+  item.issue = {text, reportedBy: name || null, reportedAt: new Date().toISOString()};
+  addLog('⚠️', `${item.name} issue reported${name?' by '+name:''}: ${text}`);
+  closeSheet('equipIssueOverlay');
+  saveState();
+  renderManage();
+  render();
+  showToast(`Issue logged for ${item.name}`);
 }
 
 function resolveEquipIssue(itemId){
