@@ -178,6 +178,13 @@
     display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;
   }
   .equip-option.selected .box{background:var(--blue);border-color:var(--blue);}
+  .equip-option-main{flex:1;min-width:0;}
+  .equip-option-issue{margin-top:3px;font-size:10.5px;font-weight:700;color:var(--amber);cursor:pointer;}
+  .shop-issue-btn{
+    display:block;margin-top:4px;background:var(--amber-soft);color:var(--amber);border:none;
+    border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;text-align:left;
+    max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Inter',sans-serif;
+  }
   .empty-note{font-size:13px;color:var(--ink-soft);padding:10px 2px;}
   .sheet-submit{margin-top:16px;}
   .sheet-submit .btn{width:100%;padding:14px;font-size:15px;}
@@ -333,18 +340,24 @@
 
   /* Equipment return confirmation */
   .equip-return-row{
-    display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--line);
-    border-radius:10px;margin-bottom:8px;
+    padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;margin-bottom:8px;
   }
-  .equip-return-row .ername{flex:1;font-size:13.5px;font-weight:600;}
+  .equip-return-row .ername{display:block;font-size:13.5px;font-weight:600;margin-bottom:8px;}
   .equip-return-choice{display:flex;gap:6px;}
   .er-btn{
-    padding:8px 11px;border-radius:8px;border:1.5px solid var(--line);background:#fff;
-    font-size:12px;font-weight:700;cursor:pointer;color:var(--ink-soft);
+    flex:1;padding:8px 6px;border-radius:8px;border:1.5px solid var(--line);background:#fff;
+    font-size:12px;font-weight:700;cursor:pointer;color:var(--ink-soft);font-family:'Inter',sans-serif;
   }
   .er-btn.returned.selected{background:var(--green-soft);border-color:var(--green);color:var(--green);}
   .er-btn.missing.selected{background:var(--red-soft);border-color:var(--red);color:var(--red);}
+  .er-btn.issue.selected{background:var(--amber-soft);border-color:var(--amber);color:var(--amber);}
   .equip-return-row.unconfirmed{border-color:#F0C36B;background:#FFFBF2;}
+  .equip-issue-note{
+    display:none;margin-top:8px;width:100%;min-height:50px;padding:9px 11px;border-radius:8px;
+    border:1.5px solid var(--amber);background:#fff;font-size:13px;font-family:'Inter',sans-serif;
+    resize:vertical;
+  }
+  .equip-issue-note:focus{outline:none;}
 
   .shop-item.missing .shop-icon{background:var(--red-soft);}
   .pill.missing{background:var(--red-soft);color:var(--red);}
@@ -621,6 +634,16 @@
   </div>
 </div>
 
+<div class="overlay" id="equipIssueOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-title" id="equipIssueTitle">Tool Issue</div>
+      <button class="sheet-close" onclick="closeSheet('equipIssueOverlay')">✕</button>
+    </div>
+    <div id="equipIssueBody"></div>
+  </div>
+</div>
+
 <div class="overlay" id="checkInOverlay">
   <div class="sheet">
     <div class="sheet-head">
@@ -865,7 +888,7 @@ function defaultState(locationId){
     equipment: preset.equipment.map(([name,icon,category])=>({
       id: name.toLowerCase().replace(/[^a-z0-9]+/g,'-'),
       name, icon, category, truckId:null, lastUser:null, lastUserPassenger:null, lastAction:null, lastTs:null,
-      missing:false, missingSince:null, missingReportedBy:null, missingReportedByPassenger:null, missingNote:null
+      missing:false, missingSince:null, missingReportedBy:null, missingReportedByPassenger:null, missingNote:null, issue:null
     })),
     expenseLog: [],
     expenseLocations: defaultExpenseLocations(locationId),
@@ -892,6 +915,7 @@ function migrateState(s){
     if(e.missingReportedByPassenger===undefined) e.missingReportedByPassenger = null;
     if(e.missingNote===undefined) e.missingNote = null;
     if(e.lastUserPassenger===undefined) e.lastUserPassenger = null;
+    if(e.issue===undefined) e.issue = null;
   });
   return s;
 }
@@ -1015,10 +1039,11 @@ function render(){
   const equipAvail = state.equipment.filter(e=>!e.truckId && !e.missing).length;
   const problemCount = state.trucks.filter(t=>t.problem).length;
   const missingCount = state.equipment.filter(e=>e.missing).length;
+  const issueCount = state.equipment.filter(e=>e.issue).length;
   document.getElementById('statOut').textContent = outCount;
   document.getElementById('statAvail').textContent = availCount;
   document.getElementById('statEquip').textContent = equipAvail + '/' + state.equipment.length;
-  document.getElementById('statProblems').textContent = problemCount + missingCount;
+  document.getElementById('statProblems').textContent = problemCount + missingCount + issueCount;
 
   const main = document.getElementById('mainContent');
   if(activeTab === 'fleet') main.innerHTML = renderFleet();
@@ -1173,6 +1198,7 @@ function shopRow(e,kind){
     <div>
       <div class="shop-name">${e.name}</div>
       <div class="shop-sub">${sub}</div>
+      ${e.issue ? `<button class="shop-issue-btn" onclick="openEquipIssueView('${e.id}')">⚠️ ${escapeHtml(e.issue.text.length>44?e.issue.text.slice(0,44)+'…':e.issue.text)}</button>` : ''}
     </div>
     <div class="shop-status">
       <span class="pill ${pillClass}">${pillLabel}</span>
@@ -1299,8 +1325,12 @@ function openCheckout(truckId){
 }
 
 function equipOptionHtml(e, mode){
+  const issueNote = e.issue
+    ? `<div class="equip-option-issue" onclick="event.stopPropagation(); openEquipIssueView('${e.id}')">⚠️ ${escapeHtml(e.issue.text.length>40?e.issue.text.slice(0,40)+'…':e.issue.text)}</div>`
+    : '';
   return `<div class="equip-option" data-id="${e.id}" onclick="toggleEquip('${e.id}','${mode}')">
-    <div class="box">✓</div>${e.icon} ${e.name}
+    <div class="box">✓</div>
+    <div class="equip-option-main">${e.icon} ${e.name}${issueNote}</div>
   </div>`;
 }
 
@@ -1445,6 +1475,22 @@ function escapeHtml(str){
   return d.innerHTML;
 }
 
+function equipReturnRowHtml(id, name, icon, prefillStatus, prefillIssueText){
+  const sel = (s) => prefillStatus===s ? 'selected' : '';
+  const rowClass = prefillStatus ? 'equip-return-row' : 'equip-return-row unconfirmed';
+  const noteDisplay = prefillStatus==='issue' ? 'block' : 'none';
+  return `
+  <div class="${rowClass}" data-item="${id}">
+    <span class="ername">${icon} ${name}</span>
+    <div class="equip-return-choice">
+      <button type="button" class="er-btn returned ${sel('returned')}" onclick="setEquipReturnStatus('${id}','returned')">Returned</button>
+      <button type="button" class="er-btn missing ${sel('missing')}" onclick="setEquipReturnStatus('${id}','missing')">Missing</button>
+      <button type="button" class="er-btn issue ${sel('issue')}" onclick="setEquipReturnStatus('${id}','issue')">Issue</button>
+    </div>
+    <textarea class="equip-issue-note" style="display:${noteDisplay};" placeholder="What's the issue? e.g. no blades left for the Sawzall">${prefillIssueText?escapeHtml(prefillIssueText):''}</textarea>
+  </div>`;
+}
+
 /* Check In — end of day */
 function openCheckIn(truckId){
   checkInTruckId = truckId;
@@ -1463,14 +1509,9 @@ function openCheckIn(truckId){
   missingNotesField.style.display = 'none';
   if(items.length){
     equipField.style.display = 'block';
-    document.getElementById('equipReturnList').innerHTML = items.map(e=>`
-      <div class="equip-return-row unconfirmed" data-item="${e.id}">
-        <span class="ername">${e.icon} ${e.name}</span>
-        <div class="equip-return-choice">
-          <button type="button" class="er-btn returned" onclick="setEquipReturnStatus('${e.id}','returned')">Returned</button>
-          <button type="button" class="er-btn missing" onclick="setEquipReturnStatus('${e.id}','missing')">Missing</button>
-        </div>
-      </div>`).join('');
+    document.getElementById('equipReturnList').innerHTML = items.map(e=>
+      equipReturnRowHtml(e.id, e.name, e.icon, null, null)
+    ).join('');
   } else {
     equipField.style.display = 'none';
   }
@@ -1495,6 +1536,9 @@ function setEquipReturnStatus(itemId, status){
     row.classList.remove('unconfirmed');
     row.querySelector('.er-btn.returned').classList.toggle('selected', status==='returned');
     row.querySelector('.er-btn.missing').classList.toggle('selected', status==='missing');
+    row.querySelector('.er-btn.issue').classList.toggle('selected', status==='issue');
+    const noteEl = row.querySelector('.equip-issue-note');
+    if(noteEl) noteEl.style.display = status==='issue' ? 'block' : 'none';
   }
   const anyMissing = Array.from(selectedEquipStatus.values()).some(v=>v==='missing');
   document.getElementById('missingNotesField').style.display = anyMissing ? 'block' : 'none';
@@ -1556,14 +1600,27 @@ function submitCheckIn(){
   const items = equipForTruck(checkInTruckId);
 
   if(items.length && selectedEquipStatus.size < items.length){
-    showToast('Confirm each piece of equipment as Returned or Missing');
+    showToast('Confirm each piece of equipment as Returned, Missing, or Issue');
     return;
+  }
+
+  // Every item marked "Issue" needs an actual comment describing it.
+  for(const e of items){
+    if(selectedEquipStatus.get(e.id)==='issue'){
+      const noteEl = document.querySelector(`.equip-return-row[data-item="${e.id}"] .equip-issue-note`);
+      if(!noteEl || !noteEl.value.trim()){
+        showToast(`Describe the issue with ${e.name}`);
+        return;
+      }
+    }
   }
 
   const missingNote = document.getElementById('missingNotesInput').value.trim() || null;
   const returned = [];
   const missing = [];
+  const issues = [];
   const manifest = [];
+  const crew = crewLabel(driverName, passengerName);
   items.forEach(e=>{
     const status = selectedEquipStatus.get(e.id);
     e.truckId = null;
@@ -1579,6 +1636,14 @@ function submitCheckIn(){
       e.lastAction = 'reported missing';
       missing.push(e.name);
       manifest.push({id:e.id, name:e.name, icon:e.icon, status:'missing'});
+    } else if(status==='issue'){
+      const noteEl = document.querySelector(`.equip-return-row[data-item="${e.id}"] .equip-issue-note`);
+      const issueText = noteEl.value.trim();
+      e.missing = false;
+      e.issue = {text: issueText, reportedBy: crew, reportedAt: now};
+      e.lastAction = 'returned with issue';
+      issues.push(`${e.name} (${issueText})`);
+      manifest.push({id:e.id, name:e.name, icon:e.icon, status:'issue', issueText});
     } else {
       e.missing = false;
       e.lastAction = 'returned';
@@ -1608,14 +1673,17 @@ function submitCheckIn(){
   let logMsg = `Truck ${checkInTruckId} checked in by ${driverName} — ${selectedFullness} full`;
   if(returned.length) logMsg += ` — returned ${returned.join(', ')}`;
   if(missing.length) logMsg += ` — missing ${missing.join(', ')}${missingNote?' ("'+missingNote+'")':''}`;
-  addLog(missing.length ? '⚠️' : '✅', logMsg);
+  if(issues.length) logMsg += ` — issue: ${issues.join('; ')}`;
+  addLog((missing.length || issues.length) ? '⚠️' : '✅', logMsg);
 
   closeSheet('checkInOverlay');
   saveState();
   render();
-  showToast(missing.length
-    ? `Truck ${checkInTruckId} checked in — ${missing.length} item(s) flagged missing`
-    : `Truck ${checkInTruckId} checked in — thanks${driverName?', '+driverName:''}!`);
+  let toastMsg = `Truck ${checkInTruckId} checked in — thanks${driverName?', '+driverName:''}!`;
+  if(missing.length && issues.length) toastMsg = `Truck ${checkInTruckId} checked in — ${missing.length} missing, ${issues.length} with an issue`;
+  else if(missing.length) toastMsg = `Truck ${checkInTruckId} checked in — ${missing.length} item(s) flagged missing`;
+  else if(issues.length) toastMsg = `Truck ${checkInTruckId} checked in — ${issues.length} item(s) flagged with an issue`;
+  showToast(toastMsg);
 }
 
 /* Editing an already-submitted end-of-day entry from the EOD tab */
@@ -1836,14 +1904,7 @@ function openEodEdit(truckId){
     equipField.style.display = 'block';
     document.getElementById('equipReturnList').innerHTML = manifest.map(m=>{
       selectedEquipStatus.set(m.id, m.status);
-      return `
-      <div class="equip-return-row" data-item="${m.id}">
-        <span class="ername">${m.icon} ${m.name}</span>
-        <div class="equip-return-choice">
-          <button type="button" class="er-btn returned ${m.status==='returned'?'selected':''}" onclick="setEquipReturnStatus('${m.id}','returned')">Returned</button>
-          <button type="button" class="er-btn missing ${m.status==='missing'?'selected':''}" onclick="setEquipReturnStatus('${m.id}','missing')">Missing</button>
-        </div>
-      </div>`;
+      return equipReturnRowHtml(m.id, m.name, m.icon, m.status, m.issueText || null);
     }).join('');
     document.getElementById('missingNotesField').style.display =
       manifest.some(m=>m.status==='missing') ? 'block' : 'none';
@@ -1878,31 +1939,40 @@ function submitEodEdit(truck){
   const manifest = eod.equipmentManifest || [];
 
   if(manifest.length && selectedEquipStatus.size < manifest.length){
-    showToast('Confirm each piece of equipment as Returned or Missing');
+    showToast('Confirm each piece of equipment as Returned, Missing, or Issue');
     return;
+  }
+
+  for(const m of manifest){
+    if(selectedEquipStatus.get(m.id)==='issue'){
+      const noteEl = document.querySelector(`.equip-return-row[data-item="${m.id}"] .equip-issue-note`);
+      if(!noteEl || !noteEl.value.trim()){
+        showToast(`Describe the issue with ${m.name}`);
+        return;
+      }
+    }
   }
 
   const editedBy = document.getElementById('eodEditedByInput').value.trim();
   const missingNote = document.getElementById('missingNotesInput').value.trim() || null;
   const now = new Date().toISOString();
+  const crew = editedBy || crewLabel(eod.submittedBy, eod.passenger);
 
   const returnedNames = [];
   const missingNames = [];
+  const issueNames = [];
   const changedButSkipped = [];
 
   const newManifest = manifest.map(m=>{
     const newStatus = selectedEquipStatus.get(m.id) || m.status;
-    if(newStatus === m.status){
-      (newStatus==='missing' ? missingNames : returnedNames).push(m.name);
-      return m;
-    }
     const eq = state.equipment.find(e=>e.id===m.id);
     if(!eq){
       changedButSkipped.push(m.name);
       return m;
     }
+
     if(newStatus==='missing'){
-      if(eq.truckId){
+      if(eq.truckId && m.status!=='missing'){
         // Already checked out on another truck since then — don't touch it.
         changedButSkipped.push(m.name);
         missingNames.push(m.name);
@@ -1916,20 +1986,30 @@ function submitEodEdit(truck){
       eq.lastAction = 'reported missing';
       eq.lastTs = now;
       missingNames.push(m.name);
-      return {...m, status:'missing'};
-    } else {
-      eq.missing = false;
-      eq.missingSince = null;
-      eq.missingReportedBy = null;
-      eq.missingReportedByPassenger = null;
-      eq.missingNote = null;
-      eq.lastAction = 'returned';
-      eq.lastUser = editedBy || eod.submittedBy;
-      eq.lastUserPassenger = editedBy ? null : (eod.passenger || null);
-      eq.lastTs = now;
-      returnedNames.push(m.name);
-      return {...m, status:'returned'};
+      return {id:m.id, name:m.name, icon:m.icon, status:'missing'};
     }
+
+    if(newStatus==='issue'){
+      const noteEl = document.querySelector(`.equip-return-row[data-item="${m.id}"] .equip-issue-note`);
+      const issueText = noteEl ? noteEl.value.trim() : (m.issueText || '');
+      eq.missing = false;
+      eq.issue = {text: issueText, reportedBy: crew, reportedAt: now};
+      eq.lastAction = 'returned with issue';
+      issueNames.push(`${m.name} (${issueText})`);
+      return {id:m.id, name:m.name, icon:m.icon, status:'issue', issueText};
+    }
+
+    eq.missing = false;
+    eq.missingSince = null;
+    eq.missingReportedBy = null;
+    eq.missingReportedByPassenger = null;
+    eq.missingNote = null;
+    eq.lastAction = 'returned';
+    eq.lastUser = editedBy || eod.submittedBy;
+    eq.lastUserPassenger = editedBy ? null : (eod.passenger || null);
+    eq.lastTs = now;
+    returnedNames.push(m.name);
+    return {id:m.id, name:m.name, icon:m.icon, status:'returned'};
   });
 
   truck.lastEod = {
@@ -1946,8 +2026,9 @@ function submitEodEdit(truck){
 
   let logMsg = `Truck ${checkInTruckId} end-of-day edited${editedBy?' by '+editedBy:''} — ${selectedFullness} full`;
   if(missingNames.length) logMsg += ` — missing ${missingNames.join(', ')}`;
+  if(issueNames.length) logMsg += ` — issue: ${issueNames.join('; ')}`;
   if(changedButSkipped.length) logMsg += ` (couldn't update ${changedButSkipped.join(', ')} — already back in use)`;
-  addLog(missingNames.length ? '⚠️' : '✏️', logMsg);
+  addLog((missingNames.length || issueNames.length) ? '⚠️' : '✏️', logMsg);
 
   closeSheet('checkInOverlay');
   eodEditMode = false;
@@ -2002,6 +2083,7 @@ function renderManage(){
       <div>
         <div class="mname">${e.icon} ${e.name}</div>
         <div class="msub">${e.missing ? 'Reported missing — resolve first' : (e.truckId ? 'On Truck '+e.truckId+' — return before removing' : 'At the shop')}</div>
+        ${e.issue ? `<button class="shop-issue-btn" onclick="openEquipIssueView('${e.id}')">⚠️ ${escapeHtml(e.issue.text.length>44?e.issue.text.slice(0,44)+'…':e.issue.text)}</button>` : ''}
       </div>
       <button class="remove-btn" ${(e.truckId||e.missing)?'disabled':''} onclick="removeEquipmentItem('${e.id}')" title="Remove">✕</button>
     </div>
@@ -2041,7 +2123,7 @@ function addEquipmentItem(){
   const category = catSelect.value;
   const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-') + '-' + Date.now().toString(36);
   const icon = category==='bag' ? '🎒' : '🧰';
-  state.equipment.push({id, name, icon, category, truckId:null, lastUser:null, lastUserPassenger:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingReportedByPassenger:null, missingNote:null});
+  state.equipment.push({id, name, icon, category, truckId:null, lastUser:null, lastUserPassenger:null, lastAction:null, lastTs:null, missing:false, missingSince:null, missingReportedBy:null, missingReportedByPassenger:null, missingNote:null, issue:null});
   addLog('🛠️', `${name} added to shop inventory`);
   nameInput.value = '';
   saveState();
@@ -2073,6 +2155,35 @@ function resolveMissingItem(id){
   saveState();
   render();
   showToast(`${item.name} marked as found`);
+}
+
+/* View / resolve a tool issue flagged at check-in — shown on Shop Inventory,
+   Configure Fleet, and the equipment pickers wherever this item appears. */
+function openEquipIssueView(itemId){
+  const item = state.equipment.find(e=>e.id===itemId);
+  if(!item || !item.issue) return;
+  document.getElementById('equipIssueTitle').textContent = `${item.icon} ${item.name}`;
+  document.getElementById('equipIssueBody').innerHTML = `
+    <div class="problem-view">
+      <div class="ptxt">${escapeHtml(item.issue.text)}</div>
+      <div class="pmeta">Reported${item.issue.reportedBy?' by '+escapeHtml(item.issue.reportedBy):''} · ${dateTimeShort(item.issue.reportedAt)}</div>
+    </div>
+    <div class="sheet-submit">
+      <button class="btn btn-primary" onclick="resolveEquipIssue('${itemId}')">Mark resolved</button>
+    </div>`;
+  document.getElementById('equipIssueOverlay').classList.add('show');
+}
+
+function resolveEquipIssue(itemId){
+  const item = state.equipment.find(e=>e.id===itemId);
+  if(!item) return;
+  const was = item.issue ? item.issue.text : '';
+  item.issue = null;
+  addLog('✅', `${item.name} issue resolved${was?' (was: '+was+')':''}`);
+  closeSheet('equipIssueOverlay');
+  saveState();
+  render();
+  showToast(`${item.name} issue cleared`);
 }
 
 /* Poll the shared backend so other people's phones/laptops show up here too.
