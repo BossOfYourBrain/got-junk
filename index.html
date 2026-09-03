@@ -1089,7 +1089,7 @@ function opsCard(t){
   const missingFlag = (eod.missingItems && eod.missingItems.length)
     ? `<div class="ops-problem-flag">🧰 Missing: ${eod.missingItems.join(', ')}</div>` : '';
   const editedNote = eod.lastEditedBy
-    ? `<div class="ops-sub">Edited by ${eod.lastEditedBy} · ${timeShort(eod.lastEditedAt)}</div>` : '';
+    ? `<div class="ops-sub">Edited by ${eod.lastEditedBy} · ${dateTimeShort(eod.lastEditedAt)}</div>` : '';
   return `
   <div class="ops-card">
     <div class="ops-card-head">
@@ -1102,7 +1102,7 @@ function opsCard(t){
     ${missingFlag}
     ${photo}
     <div class="ops-chips">${chips}</div>
-    <div class="ops-sub">${crewLabel(eod.submittedBy, eod.passenger)||'Unknown'} · ${timeShort(eod.submittedAt)}</div>
+    <div class="ops-sub">${crewLabel(eod.submittedBy, eod.passenger)||'Unknown'} · ${dateTimeShort(eod.submittedAt)}</div>
     ${editedNote}
     <div class="ops-btn-row">
       <button class="ops-edit-btn" onclick="openEodEdit(${t.id})">✏️ Edit</button>
