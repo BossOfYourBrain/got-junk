@@ -868,29 +868,43 @@ function defaultState(locationId){
   };
 }
 
+// Fills in any fields older saved data is missing. Used both on initial
+// load and every poll cycle, so a location's data never regresses to a
+// pre-migration shape just because the poll re-fetched an older-shaped
+// blob from before this migration was ever saved back to Redis.
+function migrateState(s){
+  if(!s.log) s.log = [];
+  if(!s.expenseLog) s.expenseLog = [];
+  if(!s.expenseLocations) s.expenseLocations = defaultExpenseLocations(currentLocationId);
+  s.trucks.forEach(t=>{
+    if(t.problem===undefined) t.problem = null;
+    if(t.lastEod===undefined) t.lastEod = null;
+  });
+  s.equipment.forEach(e=>{
+    if(e.missing===undefined) e.missing = false;
+    if(e.missingSince===undefined) e.missingSince = null;
+    if(e.missingReportedBy===undefined) e.missingReportedBy = null;
+    if(e.missingReportedByPassenger===undefined) e.missingReportedByPassenger = null;
+    if(e.missingNote===undefined) e.missingNote = null;
+    if(e.lastUserPassenger===undefined) e.lastUserPassenger = null;
+  });
+  return s;
+}
+
 async function loadState(){
   try{
     const res = await fetch('/api/state', {credentials:'same-origin'});
     if(res.status===401){ showLogin(); return; }
     const data = await res.json();
     if(data && data.value){
-      state = data.value;
-      if(!state.log) state.log = [];
-      if(!state.expenseLog) state.expenseLog = [];
-      if(!state.expenseLocations) state.expenseLocations = defaultExpenseLocations(currentLocationId);
-      state.trucks.forEach(t=>{
-        if(t.problem===undefined) t.problem = null;
-        if(t.lastEod===undefined) t.lastEod = null;
-      });
-      state.equipment.forEach(e=>{
-        if(e.missing===undefined) e.missing = false;
-        if(e.missingSince===undefined) e.missingSince = null;
-        if(e.missingReportedBy===undefined) e.missingReportedBy = null;
-        if(e.missingReportedByPassenger===undefined) e.missingReportedByPassenger = null;
-        if(e.missingNote===undefined) e.missingNote = null;
-        if(e.lastUserPassenger===undefined) e.lastUserPassenger = null;
-      });
+      const before = JSON.stringify(data.value);
+      state = migrateState(data.value);
       pruneOldExpenses();
+      // If migration actually changed the shape, persist it immediately so
+      // the next poll (and every other device) sees the same fields —
+      // otherwise the in-memory fix would get overwritten by the next
+      // fetch of the older-shaped data still sitting in Redis.
+      if(JSON.stringify(state) !== before) saveState();
     } else {
       state = defaultState(currentLocationId);
       saveState();
@@ -2051,8 +2065,7 @@ function startPolling(){
       if(data && data.value){
         const fresh = JSON.stringify(data.value);
         if(fresh !== JSON.stringify(state)){
-          state = data.value;
-          if(!state.log) state.log = [];
+          state = migrateState(data.value);
           render();
         }
       }
