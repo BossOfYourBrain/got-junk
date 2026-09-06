@@ -91,6 +91,7 @@
     background:var(--blue-deep);
   }
   .truck-badge.avail{background:var(--green);}
+  .truck-badge.oos{background:var(--amber);}
   .truck-meta{flex:1;min-width:0;}
   .truck-meta .label{font-size:11px;color:var(--ink-soft);font-weight:700;text-transform:uppercase;letter-spacing:.06em;}
   .truck-meta .crew{font-size:15px;font-weight:700;margin-top:2px;}
@@ -100,6 +101,7 @@
   }
   .pill.out{background:var(--amber-soft);color:var(--amber);}
   .pill.avail{background:var(--green-soft);color:var(--green);}
+  .pill.oos{background:var(--amber-soft);color:var(--amber);}
 
   .truck-body{padding:0 14px 14px;}
   .equip-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px;}
@@ -656,6 +658,27 @@
   </div>
 </div>
 
+<div class="overlay" id="oosOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-title" id="oosTitle">Mark Out of Service</div>
+      <button class="sheet-close" onclick="closeSheet('oosOverlay')">✕</button>
+    </div>
+    <div class="field">
+      <label>Your name</label>
+      <input type="text" id="oosNameInput" placeholder="e.g. Tom">
+    </div>
+    <div class="field">
+      <label>Reason (optional)</label>
+      <textarea id="oosReasonInput" placeholder="e.g. Brakes need service before it can go out"></textarea>
+    </div>
+    <div class="login-error" id="oosError"></div>
+    <div class="sheet-submit">
+      <button class="btn btn-primary" onclick="submitOutOfService()">Mark Out of Service</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="problemOverlay">
   <div class="sheet">
     <div class="sheet-head">
@@ -973,7 +996,7 @@ function defaultExpenseLocations(locationId){
 function defaultState(locationId){
   const preset = LOCATION_FLEET_PRESETS[locationId] || LOCATION_FLEET_PRESETS['vancouver-island'];
   return {
-    trucks: preset.trucks.map(id=>({id, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null})),
+    trucks: preset.trucks.map(id=>({id, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null, oosBy:null, oosReason:null, oosSince:null})),
     equipment: preset.equipment.map(([name,icon,category])=>({
       id: name.toLowerCase().replace(/[^a-z0-9]+/g,'-'),
       name, icon, category, truckId:null, lastUser:null, lastUserPassenger:null, lastAction:null, lastTs:null,
@@ -1000,6 +1023,9 @@ function migrateState(s){
   s.trucks.forEach(t=>{
     if(t.problem===undefined) t.problem = null;
     if(t.lastEod===undefined) t.lastEod = null;
+    if(t.oosBy===undefined) t.oosBy = null;
+    if(t.oosReason===undefined) t.oosReason = null;
+    if(t.oosSince===undefined) t.oosSince = null;
   });
   s.equipment.forEach(e=>{
     if(e.missing===undefined) e.missing = false;
@@ -1148,6 +1174,7 @@ function render(){
 function renderFleet(){
   const out = state.trucks.filter(t=>t.status==='out').sort((a,b)=>a.id-b.id);
   const avail = state.trucks.filter(t=>t.status==='available').sort((a,b)=>a.id-b.id);
+  const oos = state.trucks.filter(t=>t.status==='out-of-service').sort((a,b)=>a.id-b.id);
   let html = '';
   if(state.trucks.length===0){
     return `<div class="empty-note">No trucks configured yet. Tap ⚙ in the header to add your fleet.</div>`;
@@ -1157,10 +1184,14 @@ function renderFleet(){
     out.forEach(t=>{ html += truckCardOut(t); });
   }
   html += `<div class="section-label">In the shop — ${avail.length}</div>`;
-  if(avail.length===0){
+  if(avail.length===0 && oos.length===0){
     html += `<div class="empty-note">Every truck is out for the day.</div>`;
   }
   avail.forEach(t=>{ html += truckCardAvailable(t); });
+  if(oos.length){
+    html += `<div class="section-label">Out of service — ${oos.length}</div>`;
+    oos.forEach(t=>{ html += truckCardOutOfService(t); });
+  }
   return html;
 }
 
@@ -1225,6 +1256,31 @@ function truckCardAvailable(t){
       ${problemBlock(t)}
       <div class="btn-row">
         <button class="btn btn-primary" onclick="openCheckout(${t.id})">Check out Truck ${t.id}</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn btn-ghost" onclick="openOutOfService(${t.id})">🔧 Out of Service</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function truckCardOutOfService(t){
+  const detail = t.oosBy ? `Taken by ${t.oosBy}` : 'Out of service';
+  return `
+  <div class="truck-card">
+    <div class="truck-top">
+      <div class="truck-badge oos">${t.id}</div>
+      <div class="truck-meta">
+        <div class="label">Truck ${t.id}</div>
+        <div class="crew empty">${escapeHtml(detail)}</div>
+      </div>
+      <span class="pill oos">Out of Service</span>
+    </div>
+    <div class="truck-body">
+      ${t.oosReason ? `<div class="no-equip">${escapeHtml(t.oosReason)}</div>` : ''}
+      <div class="checked-time">Since ${dateTimeShort(t.oosSince)}</div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="returnToService(${t.id})">✅ Return to Service</button>
       </div>
     </div>
   </div>`;
@@ -1324,10 +1380,20 @@ function renderOps(){
     return `<div class="empty-note">No trucks configured yet. Tap ⚙ in the header to add your fleet.</div>`;
   }
   const rank = {'Empty':0,'1/4':1,'1/2':2,'3/4':3,'Full':4};
+  // Sort priority: trucks with today's EOD data (fullest first), then
+  // trucks currently Out, then trucks with no EOD data yet, then trucks
+  // that are Out of Service pushed to the very bottom.
+  function eodTier(t){
+    if(t.status==='out-of-service') return 3;
+    if(t.status==='out') return 1;
+    if(t.lastEod) return 0;
+    return 2;
+  }
   const sorted = [...state.trucks].sort((a,b)=>{
-    const ra = a.lastEod ? rank[a.lastEod.fullness] : -1;
-    const rb = b.lastEod ? rank[b.lastEod.fullness] : -1;
-    return rb - ra;
+    const ta = eodTier(a), tb = eodTier(b);
+    if(ta !== tb) return ta - tb;
+    if(ta === 0) return rank[b.lastEod.fullness] - rank[a.lastEod.fullness];
+    return a.id - b.id;
   });
   let html = '';
   const hasOpsScorecardLink = (state.spreadsheetLinks||[]).some(l=>l.purpose==='Ops Scorecard');
@@ -1358,9 +1424,19 @@ function renderOps(){
 function opsCard(t){
   const problemFlag = t.problem ? `<div class="ops-problem-flag">🚨 Problem reported</div>` : '';
   const statusPill = t.status==='out'
-    ? `<span class="pill out">Out</span>` : `<span class="pill avail">Available</span>`;
-  const expenseBtn = `<button class="ops-expense-btn" onclick="openExpenseHistory(${t.id})">💵 Today: ${formatMoney(truckTodayTotal(t.id))} · History</button>`;
+    ? `<span class="pill out">Out</span>`
+    : t.status==='out-of-service'
+      ? `<span class="pill oos">Out of Service</span>`
+      : `<span class="pill avail">Available</span>`;
+  const expenseBtn = `<button class="ops-expense-btn" onclick="openExpenseHistory(${t.id})">💵 Dumps: ${formatMoney(truckTodayTotal(t.id))} Today</button>`;
   if(!t.lastEod){
+    let emptyMsg = 'No end-of-day data yet';
+    let crewLine = '';
+    if(t.status==='out'){
+      crewLine = `<div class="ops-sub">${crewLabel(t.driver, t.passenger) || 'Unknown crew'}</div>`;
+    } else if(t.status==='out-of-service'){
+      emptyMsg = `${t.oosBy ? 'Taken by '+t.oosBy : 'Out of service'}${t.oosReason ? ' — '+t.oosReason : ''}`;
+    }
     return `
     <div class="ops-card">
       <div class="ops-card-head">
@@ -1369,7 +1445,8 @@ function opsCard(t){
         ${statusPill}
       </div>
       ${problemFlag}
-      <div class="ops-empty">No end-of-day data yet</div>
+      ${crewLine}
+      <div class="ops-empty">${escapeHtml(emptyMsg)}</div>
       ${expenseBtn}
     </div>`;
   }
@@ -1474,6 +1551,55 @@ function submitCheckout(){
   saveState();
   render();
   showToast(`Truck ${checkoutTruckId} checked out to ${driver}`);
+}
+
+/* Out of Service -- for a truck that needs maintenance before it can go
+   out, or has been taken to a mechanic. Only offered from an Available
+   truck for now; a truck already Out that breaks down in the field would
+   need its own flow (driver/equipment handling) not covered here yet. */
+let oosTruckId = null;
+
+function openOutOfService(truckId){
+  oosTruckId = truckId;
+  document.getElementById('oosTitle').textContent = 'Mark Truck ' + truckId + ' Out of Service';
+  document.getElementById('oosNameInput').value = '';
+  document.getElementById('oosReasonInput').value = '';
+  document.getElementById('oosError').textContent = '';
+  document.getElementById('oosOverlay').classList.add('show');
+}
+
+function submitOutOfService(){
+  const errEl = document.getElementById('oosError');
+  errEl.textContent = '';
+  const name = document.getElementById('oosNameInput').value.trim();
+  if(!name){ errEl.textContent = 'Enter your name'; return; }
+  const reason = document.getElementById('oosReasonInput').value.trim() || null;
+
+  const truck = state.trucks.find(t=>t.id===oosTruckId);
+  if(!truck) return;
+  truck.status = 'out-of-service';
+  truck.oosBy = name;
+  truck.oosReason = reason;
+  truck.oosSince = new Date().toISOString();
+
+  addLog('🔧', `Truck ${oosTruckId} marked out of service by ${name}${reason?' — '+reason:''}`);
+  closeSheet('oosOverlay');
+  saveState();
+  render();
+  showToast(`Truck ${oosTruckId} marked out of service`);
+}
+
+function returnToService(truckId){
+  const truck = state.trucks.find(t=>t.id===truckId);
+  if(!truck) return;
+  truck.status = 'available';
+  truck.oosBy = null;
+  truck.oosReason = null;
+  truck.oosSince = null;
+  addLog('✅', `Truck ${truckId} returned to service`);
+  saveState();
+  render();
+  showToast(`Truck ${truckId} back in service`);
 }
 
 function openAddEquip(truckId){
@@ -1820,7 +1946,7 @@ function openAddExpense(truckId){
   document.getElementById('expenseOverlay').classList.add('show');
 }
 
-function submitExpense(){
+async function submitExpense(){
   const errEl = document.getElementById('expenseError');
   errEl.textContent = '';
   const where = document.getElementById('expenseWhereSelect').value;
@@ -1846,7 +1972,10 @@ function submitExpense(){
   pruneOldExpenses();
   addLog('💵', `${entry.addedBy||'Someone'} logged ${formatMoney(amount)} at ${where}${note?' ("'+note+'")':''} — Truck ${expenseTruckId}`);
   closeSheet('expenseOverlay');
-  saveState();
+  // Wait for the write to actually land in Redis before asking the sync
+  // endpoint to read it back -- otherwise the sync can read the state from
+  // just before this expense was saved and push a stale (lower) total.
+  await saveState();
   render();
   // If the truck's expense history sheet happens to be open behind this one, refresh it too.
   if(document.getElementById('expenseHistoryOverlay').classList.contains('show') && expenseHistoryTruckId===expenseTruckId){
@@ -2022,7 +2151,7 @@ function expandExpenseHistory(){
 // Only today's expenses can be removed this way -- once a day is in the
 // past it's treated as a closed record, same as the rest of the app's
 // history (Log entries, past EOD data) staying put once the day's over.
-function removeExpense(id){
+async function removeExpense(id){
   const entry = (state.expenseLog||[]).find(e=>e.id===id);
   if(!entry) return;
   if(entry.date !== localDateStr()){
@@ -2032,7 +2161,7 @@ function removeExpense(id){
   if(!confirm(`Remove ${formatMoney(entry.amount)} at ${entry.where}?`)) return;
   state.expenseLog = state.expenseLog.filter(e=>e.id!==id);
   addLog('🗑️', `Expense removed — ${formatMoney(entry.amount)} at ${entry.where} (Truck ${entry.truckId})`);
-  saveState();
+  await saveState();
   renderExpenseHistoryBody();
   render();
   syncDumpTotal();
@@ -2384,7 +2513,7 @@ function addTruck(){
   const num = parseInt(input.value, 10);
   if(!num || num<=0){ showToast('Enter a valid truck number'); return; }
   if(state.trucks.some(t=>t.id===num)){ showToast(`Truck ${num} already exists`); return; }
-  state.trucks.push({id:num, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null});
+  state.trucks.push({id:num, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null, oosBy:null, oosReason:null, oosSince:null});
   addLog('🛠️', `Truck ${num} added to the fleet`);
   input.value = '';
   saveState();
