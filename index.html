@@ -1873,6 +1873,7 @@ async function manualPushToSheet(){
     if(data.ok){
       showToast(`Pushed ${formatMoney(data.dumpTotal)} to the Ops Scorecard`);
     } else {
+      console.error('Push to Sheet failed:', data);
       const messages = {
         'no-link': 'No Ops Scorecard spreadsheet linked yet.',
         'month-mismatch': "The sheet's month dropdown doesn't match today — update it first.",
@@ -1881,6 +1882,7 @@ async function manualPushToSheet(){
       showToast(messages[data.reason] || "Couldn't push to the sheet — try again shortly.");
     }
   }catch(e){
+    console.error('Push to Sheet request failed:', e);
     showToast("Couldn't reach the server — try again");
   }
   render();
