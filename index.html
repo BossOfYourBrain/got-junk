@@ -151,6 +151,7 @@
     display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:.2s;
   }
   .overlay.show{opacity:1;pointer-events:auto;}
+  #expenseOverlay{z-index:55;}
   .sheet{
     background:#fff;width:100%;max-width:640px;margin:0 auto;border-radius:20px 20px 0 0;
     padding:20px 18px 22px;max-height:86vh;overflow-y:auto;
@@ -200,6 +201,11 @@
     border-radius:10px;margin-bottom:7px;background:#FAFBFC;
   }
   .manage-row .mname{font-weight:700;font-size:14px;flex:1;}
+  .sheet-purpose-tag{
+    display:inline-block;background:var(--green-soft);color:var(--green);font-size:9.5px;
+    font-weight:800;text-transform:uppercase;letter-spacing:.03em;padding:2px 6px;border-radius:5px;
+    vertical-align:middle;
+  }
   .manage-row .msub{font-size:11.5px;color:var(--ink-soft);}
   .remove-btn{
     width:28px;height:28px;border-radius:8px;border:none;background:#FDEDED;color:#C0392B;
@@ -324,10 +330,21 @@
   }
   .eod-total-banner{
     background:var(--blue-deep);color:#fff;border-radius:14px;padding:14px 16px;margin-bottom:14px;
-    display:flex;align-items:center;justify-content:space-between;
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
   }
+  .etb-total-group{display:flex;flex-direction:column;}
   .etb-label{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;opacity:.85;}
   .etb-amount{font-family:'Archivo Black',sans-serif;font-size:22px;}
+  .etb-push-btn{
+    flex-shrink:0;padding:9px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,.5);
+    background:rgba(255,255,255,.12);color:#fff;font-size:12px;font-weight:700;cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .etb-push-btn:disabled{opacity:.4;cursor:not-allowed;}
+  .eod-link-warning{
+    background:var(--red-soft);color:var(--red);border-radius:10px;padding:9px 12px;
+    font-size:12px;font-weight:700;margin:-6px 0 14px;
+  }
 
   .expense-day-group{margin-bottom:16px;}
   .expense-day-group:last-child{margin-bottom:0;}
@@ -512,6 +529,7 @@
         <div class="header-menu" id="headerMenu">
           <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('configure')">⚙ Configure Fleet</button>
           <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('expenselocations')">💰 Expense Locations</button>
+          <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('spreadsheetlinks')">🔗 Spreadsheet Links</button>
           <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('passwords')">🔑 Passwords</button>
           <button class="header-menu-item" onclick="headerMenuAction('log')">🧾 Log</button>
           <button class="header-menu-item" onclick="headerMenuAction('switch')">↔ Switch Location</button>
@@ -735,6 +753,10 @@
       <label>Note (optional)</label>
       <input type="text" id="expenseNoteInput" placeholder="e.g. receipt #1234">
     </div>
+    <div class="field">
+      <label>Logged by (optional)</label>
+      <input type="text" id="expenseLoggedByInput" placeholder="e.g. Tom">
+    </div>
     <div class="login-error" id="expenseError"></div>
     <div class="sheet-submit">
       <button class="btn btn-primary" onclick="submitExpense()">Add Expense</button>
@@ -748,6 +770,7 @@
       <div class="sheet-title" id="expenseHistoryTitle">Expenses</div>
       <button class="sheet-close" onclick="closeSheet('expenseHistoryOverlay')">✕</button>
     </div>
+    <button class="btn btn-outline" style="width:100%;margin-bottom:14px;" onclick="openAddExpense(expenseHistoryTruckId)">+ Add Expense</button>
     <div id="expenseHistoryBody"></div>
   </div>
 </div>
@@ -763,6 +786,39 @@
     <div class="add-form">
       <input type="text" id="newExpenseLocationName" placeholder="e.g. Central Landfill">
       <button class="btn btn-primary" onclick="addExpenseLocation()">Add</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="spreadsheetLinksOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-title">Spreadsheet Links</div>
+      <button class="sheet-close" onclick="closeSheet('spreadsheetLinksOverlay')">✕</button>
+    </div>
+    <div class="login-sub">Connect this location's Google Sheets. The "Ops Scorecard" tag tells the app which one to push the Dump % to.</div>
+    <div id="spreadsheetLinksList"></div>
+    <div class="field" style="margin-top:14px;">
+      <label>Name</label>
+      <input type="text" id="newSheetLinkName" placeholder="e.g. Ops Scorecard">
+    </div>
+    <div class="field">
+      <label>Spreadsheet URL</label>
+      <input type="text" id="newSheetLinkUrl" placeholder="Paste the full Google Sheets URL">
+    </div>
+    <div class="field">
+      <label>Description (optional)</label>
+      <input type="text" id="newSheetLinkDescription" placeholder="What is this spreadsheet for?">
+    </div>
+    <div class="field">
+      <label>Purpose</label>
+      <select class="login-location-select" id="newSheetLinkPurpose">
+        <option value="">None — just a reference link</option>
+      </select>
+    </div>
+    <div class="login-error" id="spreadsheetLinkError"></div>
+    <div class="sheet-submit">
+      <button class="btn btn-primary" onclick="addSpreadsheetLink()">Add Link</button>
     </div>
   </div>
 </div>
@@ -925,9 +981,12 @@ function defaultState(locationId){
     })),
     expenseLog: [],
     expenseLocations: defaultExpenseLocations(locationId),
+    spreadsheetLinks: [],
     log: []
   };
 }
+
+const SPREADSHEET_LINK_PURPOSES = ['Ops Scorecard'];
 
 // Fills in any fields older saved data is missing. Used both on initial
 // load and every poll cycle, so a location's data never regresses to a
@@ -937,6 +996,7 @@ function migrateState(s){
   if(!s.log) s.log = [];
   if(!s.expenseLog) s.expenseLog = [];
   if(!s.expenseLocations) s.expenseLocations = defaultExpenseLocations(currentLocationId);
+  if(!s.spreadsheetLinks) s.spreadsheetLinks = [];
   s.trucks.forEach(t=>{
     if(t.problem===undefined) t.problem = null;
     if(t.lastEod===undefined) t.lastEod = null;
@@ -1270,10 +1330,17 @@ function renderOps(){
     return rb - ra;
   });
   let html = '';
+  const hasOpsScorecardLink = (state.spreadsheetLinks||[]).some(l=>l.purpose==='Ops Scorecard');
   html += `<div class="eod-total-banner">
-    <div class="etb-label">All Trucks — Today</div>
-    <div class="etb-amount">${formatMoney(allTrucksTodayTotal())}</div>
+    <div class="etb-total-group">
+      <div class="etb-label">All Trucks — Today</div>
+      <div class="etb-amount">${formatMoney(allTrucksTodayTotal())}</div>
+    </div>
+    ${currentRole==='admin' ? `<button class="etb-push-btn" ${hasOpsScorecardLink?'':'disabled'} onclick="manualPushToSheet()">🔄 Push to Sheet</button>` : ''}
   </div>`;
+  if(currentRole==='admin' && !hasOpsScorecardLink){
+    html += `<div class="eod-link-warning">⚠️ No Ops Scorecard spreadsheet linked — add one in Spreadsheet Links.</div>`;
+  }
   const missingEquip = state.equipment.filter(e=>e.missing);
   if(missingEquip.length){
     html += `<div class="ops-missing-summary">
@@ -1739,9 +1806,11 @@ let expenseTruckId = null;
 
 function openAddExpense(truckId){
   expenseTruckId = truckId;
+  const truck = state.trucks.find(t=>t.id===truckId);
   document.getElementById('expenseTitle').textContent = 'Add Expense — Truck ' + truckId;
   document.getElementById('expenseAmountInput').value = '';
   document.getElementById('expenseNoteInput').value = '';
+  document.getElementById('expenseLoggedByInput').value = (truck && truck.driver) ? truck.driver : '';
   document.getElementById('expenseError').textContent = '';
   const select = document.getElementById('expenseWhereSelect');
   const locations = state.expenseLocations || [];
@@ -1762,13 +1831,13 @@ function submitExpense(){
   if(!where){ errEl.textContent = 'Choose where this expense is from'; return; }
   if(!amountRaw || isNaN(amount) || amount <= 0){ errEl.textContent = 'Enter a valid amount'; return; }
 
-  const truck = state.trucks.find(t=>t.id===expenseTruckId);
+  const loggedBy = document.getElementById('expenseLoggedByInput').value.trim() || null;
   const now = new Date();
   const entry = {
     id: 'exp-' + now.getTime() + '-' + Math.random().toString(36).slice(2,7),
     truckId: expenseTruckId,
     where, amount, note,
-    addedBy: truck ? truck.driver : null,
+    addedBy: loggedBy,
     addedAt: now.toISOString(),
     date: localDateStr(now)
   };
@@ -1779,7 +1848,42 @@ function submitExpense(){
   closeSheet('expenseOverlay');
   saveState();
   render();
+  // If the truck's expense history sheet happens to be open behind this one, refresh it too.
+  if(document.getElementById('expenseHistoryOverlay').classList.contains('show') && expenseHistoryTruckId===expenseTruckId){
+    renderExpenseHistoryBody();
+  }
+  syncDumpTotal();
   showToast(`Expense added — Truck ${expenseTruckId}`);
+}
+
+/* Google Sheets sync — pushes today's total dump cost, divided by that
+   day's revenue, into the linked Ops Scorecard spreadsheet. */
+function syncDumpTotal(){
+  // Fire-and-forget: never blocks the UI, never surfaces errors to the
+  // user directly. If it fails, the next expense change retries the
+  // whole thing (each sync recomputes the full total, not a delta).
+  fetch('/api/sync-dump-total', {method:'POST', credentials:'same-origin'}).catch(()=>{});
+}
+
+async function manualPushToSheet(){
+  if(currentRole !== 'admin') return;
+  try{
+    const res = await fetch('/api/sync-dump-total', {method:'POST', credentials:'same-origin'});
+    const data = await res.json();
+    if(data.ok){
+      showToast(`Pushed ${formatMoney(data.dumpTotal)} to the Ops Scorecard`);
+    } else {
+      const messages = {
+        'no-link': 'No Ops Scorecard spreadsheet linked yet.',
+        'month-mismatch': "The sheet's month dropdown doesn't match today — update it first.",
+        'date-mismatch': "Couldn't confirm today's row in the sheet — check the date labels.",
+      };
+      showToast(messages[data.reason] || "Couldn't push to the sheet — try again shortly.");
+    }
+  }catch(e){
+    showToast("Couldn't reach the server — try again");
+  }
+  render();
 }
 
 /* Swap Truck — trade crews and currently checked-out equipment between two
@@ -1929,6 +2033,7 @@ function removeExpense(id){
   saveState();
   renderExpenseHistoryBody();
   render();
+  syncDumpTotal();
   showToast('Expense removed');
 }
 
@@ -1979,6 +2084,83 @@ function removeExpenseLocation(idx){
   saveState();
   renderExpenseLocations();
   showToast(`${name} removed`);
+}
+
+/* Spreadsheet Links (admin) */
+function extractSheetId(url){
+  const m = String(url||'').match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return m ? m[1] : null;
+}
+
+function openSpreadsheetLinks(){
+  if(currentRole !== 'admin'){ showToast('Admins only'); return; }
+  document.getElementById('newSheetLinkName').value = '';
+  document.getElementById('newSheetLinkUrl').value = '';
+  document.getElementById('newSheetLinkDescription').value = '';
+  document.getElementById('spreadsheetLinkError').textContent = '';
+  const purposeSelect = document.getElementById('newSheetLinkPurpose');
+  purposeSelect.innerHTML = `<option value="">None — just a reference link</option>` +
+    SPREADSHEET_LINK_PURPOSES.map(p=>`<option value="${p}">${p}</option>`).join('');
+  renderSpreadsheetLinks();
+  document.getElementById('spreadsheetLinksOverlay').classList.add('show');
+}
+
+function renderSpreadsheetLinks(){
+  const wrap = document.getElementById('spreadsheetLinksList');
+  const links = state.spreadsheetLinks || [];
+  wrap.innerHTML = links.length ? links.map((l, idx)=>`
+    <div class="manage-row">
+      <div>
+        <div class="mname">${escapeHtml(l.name)}${l.purpose?` <span class="sheet-purpose-tag">${escapeHtml(l.purpose)}</span>`:''}</div>
+        <div class="msub"><a href="${escapeHtml(l.url)}" target="_blank" rel="noopener">${escapeHtml(l.url.length>42?l.url.slice(0,42)+'…':l.url)}</a></div>
+        ${l.description ? `<div class="msub">${escapeHtml(l.description)}</div>` : ''}
+      </div>
+      <button class="remove-btn" onclick="removeSpreadsheetLink(${idx})" title="Remove">✕</button>
+    </div>
+  `).join('') : `<div class="empty-note">No spreadsheets linked yet.</div>`;
+}
+
+function addSpreadsheetLink(){
+  const errEl = document.getElementById('spreadsheetLinkError');
+  errEl.textContent = '';
+  const name = document.getElementById('newSheetLinkName').value.trim();
+  const url = document.getElementById('newSheetLinkUrl').value.trim();
+  const description = document.getElementById('newSheetLinkDescription').value.trim() || null;
+  const purpose = document.getElementById('newSheetLinkPurpose').value || null;
+
+  if(!name){ errEl.textContent = 'Enter a name'; return; }
+  const sheetId = extractSheetId(url);
+  if(!sheetId){ errEl.textContent = "Couldn't find a spreadsheet ID in that URL"; return; }
+  if(!state.spreadsheetLinks) state.spreadsheetLinks = [];
+  if(purpose && state.spreadsheetLinks.some(l=>l.purpose===purpose)){
+    errEl.textContent = `A spreadsheet is already tagged "${purpose}" — remove it first`;
+    return;
+  }
+
+  state.spreadsheetLinks.push({
+    id: 'sheet-' + Date.now().toString(36),
+    name, url, description, purpose
+  });
+  addLog('🔗', `Spreadsheet "${name}" linked${purpose?' as '+purpose:''}`);
+  document.getElementById('newSheetLinkName').value = '';
+  document.getElementById('newSheetLinkUrl').value = '';
+  document.getElementById('newSheetLinkDescription').value = '';
+  document.getElementById('newSheetLinkPurpose').value = '';
+  saveState();
+  renderSpreadsheetLinks();
+  render();
+  showToast(`${name} linked`);
+}
+
+function removeSpreadsheetLink(idx){
+  const link = state.spreadsheetLinks[idx];
+  if(!link) return;
+  state.spreadsheetLinks.splice(idx,1);
+  addLog('🗑️', `Spreadsheet "${link.name}" unlinked`);
+  saveState();
+  renderSpreadsheetLinks();
+  render();
+  showToast(`${link.name} unlinked`);
 }
 
 function openEodEdit(truckId){
@@ -2537,6 +2719,7 @@ function headerMenuAction(action){
   else if(action==='log') openLogTab();
   else if(action==='passwords') openPasswords();
   else if(action==='expenselocations') openExpenseLocations();
+  else if(action==='spreadsheetlinks') openSpreadsheetLinks();
 }
 
 function openLogTab(){
