@@ -1726,7 +1726,9 @@ function openCheckIn(truckId){
   selectedChecklist = new Set();
   pendingEodPhoto = null;
   selectedEquipStatus = new Map();
-  document.getElementById('checkInTitle').textContent = 'Check In Truck ' + truckId;
+  document.getElementById('checkInTitle').textContent = swapPendingTargetId
+    ? `Check In Truck ${truckId} (Swap → Truck ${swapPendingTargetId})`
+    : 'Check In Truck ' + truckId;
   document.getElementById('eodEditedByField').style.display = 'none';
 
   const items = equipForTruck(truckId);
@@ -1844,6 +1846,7 @@ function submitCheckIn(){
 
   const missingNote = document.getElementById('missingNotesInput').value.trim() || null;
   const returned = [];
+  const returnedIds = [];
   const missing = [];
   const issues = [];
   const manifest = [];
@@ -1875,6 +1878,7 @@ function submitCheckIn(){
       e.missing = false;
       e.lastAction = 'returned';
       returned.push(e.name);
+      returnedIds.push(e.id);
       manifest.push({id:e.id, name:e.name, icon:e.icon, status:'returned'});
     }
   });
@@ -1911,6 +1915,46 @@ function submitCheckIn(){
   else if(missing.length) toastMsg = `Truck ${checkInTruckId} checked in — ${missing.length} item(s) flagged missing`;
   else if(issues.length) toastMsg = `Truck ${checkInTruckId} checked in — ${issues.length} item(s) flagged with an issue`;
   showToast(toastMsg);
+
+  // If this check-in was the first half of a swap-into-an-available-truck,
+  // finish it now: the crew and whatever equipment came back clean move
+  // straight onto the new truck, no equipment picker needed.
+  if(swapPendingTargetId !== null){
+    const targetId = swapPendingTargetId;
+    swapPendingTargetId = null;
+    completeSwapCheckout(checkInTruckId, targetId, driverName, passengerName, returnedIds);
+  }
+}
+
+function completeSwapCheckout(sourceId, targetId, driverName, passengerName, equipmentIds){
+  const target = state.trucks.find(t=>t.id===targetId);
+  if(!target || target.status!=='available'){
+    showToast(`Truck ${targetId} is no longer available — check it out separately for the crew`);
+    return;
+  }
+  const now = new Date().toISOString();
+  target.status = 'out';
+  target.driver = driverName;
+  target.passenger = passengerName || null;
+  target.checkedOutAt = now;
+  target.lastEod = null;
+  const names = [];
+  equipmentIds.forEach(id=>{
+    const item = state.equipment.find(e=>e.id===id);
+    if(item){
+      item.truckId = targetId;
+      item.lastUser = driverName;
+      item.lastUserPassenger = passengerName || null;
+      item.lastAction = 'checked out';
+      item.lastTs = now;
+      names.push(item.name);
+    }
+  });
+  const crew = crewLabel(driverName, passengerName) || driverName;
+  addLog('🔀', `Truck ${sourceId} checked in and swapped to Truck ${targetId} — ${crew} now on Truck ${targetId}${names.length?' with '+names.join(', '):''}`);
+  saveState();
+  render();
+  showToast(`Truck ${targetId} checked out to ${crew}`);
 }
 
 /* Editing an already-submitted end-of-day entry from the EOD tab */
@@ -2021,6 +2065,7 @@ async function manualPushToSheet(){
    Out trucks. Checked-out time, truck problems, and expense history all
    stay with each vehicle since they're keyed to the truck, not the driver. */
 let swapSourceTruckId = null;
+let swapPendingTargetId = null;
 
 function openSwapTruck(truckId){
   swapSourceTruckId = truckId;
@@ -2028,11 +2073,16 @@ function openSwapTruck(truckId){
   document.getElementById('swapError').textContent = '';
   document.getElementById('swapPreview').innerHTML = '';
   const select = document.getElementById('swapTargetSelect');
-  const others = state.trucks.filter(t=>t.status==='out' && t.id!==truckId);
+  const others = state.trucks.filter(t=>t.id!==truckId && (t.status==='out' || t.status==='available'));
   select.innerHTML = others.length
     ? `<option value="" disabled selected>Choose a truck…</option>` +
-      others.map(t=>`<option value="${t.id}">Truck ${t.id} — ${crewLabel(t.driver,t.passenger)||'Unknown crew'}</option>`).join('')
-    : `<option value="" disabled selected>No other trucks are out right now</option>`;
+      others.map(t=>{
+        const label = t.status==='out'
+          ? `Truck ${t.id} — ${crewLabel(t.driver,t.passenger)||'Unknown crew'} (Out)`
+          : `Truck ${t.id} — Available`;
+        return `<option value="${t.id}">${label}</option>`;
+      }).join('')
+    : `<option value="" disabled selected>No other trucks to swap with right now</option>`;
   document.getElementById('swapOverlay').classList.add('show');
 }
 
@@ -2042,9 +2092,15 @@ document.getElementById('swapTargetSelect').addEventListener('change', function(
   const target = state.trucks.find(t=>t.id===targetId);
   const preview = document.getElementById('swapPreview');
   if(!source || !target){ preview.innerHTML = ''; return; }
-  preview.innerHTML = `
-    <div class="swap-preview-row">${crewLabel(source.driver,source.passenger)||'Unknown crew'} → moves to Truck ${target.id}</div>
-    <div class="swap-preview-row">${crewLabel(target.driver,target.passenger)||'Unknown crew'} → moves to Truck ${source.id}</div>`;
+  if(target.status==='out'){
+    preview.innerHTML = `
+      <div class="swap-preview-row">${crewLabel(source.driver,source.passenger)||'Unknown crew'} → moves to Truck ${target.id}</div>
+      <div class="swap-preview-row">${crewLabel(target.driver,target.passenger)||'Unknown crew'} → moves to Truck ${source.id}</div>`;
+  } else {
+    preview.innerHTML = `
+      <div class="swap-preview-row">You'll check in Truck ${source.id} first — photo, fullness, equipment as usual.</div>
+      <div class="swap-preview-row">Then ${crewLabel(source.driver,source.passenger)||'the crew'} and whatever equipment comes back clean move straight onto Truck ${target.id} — no need to re-pick equipment.</div>`;
+  }
 });
 
 function submitSwap(){
@@ -2055,8 +2111,21 @@ function submitSwap(){
 
   const source = state.trucks.find(t=>t.id===swapSourceTruckId);
   const target = state.trucks.find(t=>t.id===targetId);
-  if(!source || !target || source.status!=='out' || target.status!=='out'){
-    errEl.textContent = 'Both trucks must currently be out';
+  if(!source || !target || source.status!=='out'){
+    errEl.textContent = 'Something changed — try again';
+    return;
+  }
+
+  if(target.status==='available'){
+    swapPendingTargetId = targetId;
+    closeSheet('swapOverlay');
+    showToast(`Check in Truck ${source.id} to finish moving the crew to Truck ${targetId}`);
+    openCheckIn(source.id);
+    return;
+  }
+
+  if(target.status!=='out'){
+    errEl.textContent = 'The other truck must be Out or Available';
     return;
   }
 
