@@ -109,20 +109,31 @@ export default async function handler(req, res) {
       // Only reading B2 (month dropdown) and B{row} (that row's date label)
       // now -- no need to read AA at all, since the formula references it
       // directly rather than the app computing anything from its value.
+      //
+      // Deliberately using the default FORMATTED_VALUE here (not
+      // UNFORMATTED_VALUE) -- these cells likely hold real Date values with
+      // custom display formatting ("Tuesday, September 1"), and the
+      // formatted text is what actually needs to match, not the underlying
+      // raw serial number.
       const ranges = [`${tabTitle}!B2`, `${tabTitle}!B${row}`];
-      const readRes = await sheets.spreadsheets.values.batchGet({
-        spreadsheetId, ranges, valueRenderOption: 'UNFORMATTED_VALUE',
-      });
+      const readRes = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges });
       const [b2Range, bRowRange] = readRes.data.valueRanges;
       const b2Value = String((b2Range.values && b2Range.values[0] && b2Range.values[0][0]) || '').trim();
       const bRowValue = String((bRowRange.values && bRowRange.values[0] && bRowRange.values[0][0]) || '').trim();
 
-      if (b2Value.toLowerCase() !== pacificMonthName(now).toLowerCase()) {
-        res.status(200).json({ ok: false, reason: 'month-mismatch' });
+      const expectedMonth = pacificMonthName(now);
+      const expectedDateLabel = pacificFullDateLabel(now);
+
+      if (b2Value.toLowerCase() !== expectedMonth.toLowerCase()) {
+        const detail = `B2 reads "${b2Value}", expected month "${expectedMonth}"`;
+        console.error('Dump sync month-mismatch:', detail);
+        res.status(200).json({ ok: false, reason: 'month-mismatch', detail });
         return;
       }
-      if (bRowValue !== pacificFullDateLabel(now)) {
-        res.status(200).json({ ok: false, reason: 'date-mismatch' });
+      if (bRowValue !== expectedDateLabel) {
+        const detail = `B${row} reads "${bRowValue}", expected "${expectedDateLabel}"`;
+        console.error('Dump sync date-mismatch:', detail);
+        res.status(200).json({ ok: false, reason: 'date-mismatch', detail });
         return;
       }
 
