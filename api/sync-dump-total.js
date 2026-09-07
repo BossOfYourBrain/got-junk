@@ -1,8 +1,7 @@
-// Writes today's dump total into the linked "Ops Scorecard" Google Sheet as
-// a formula -- e.g. "=243.23/$AA5" -- rather than a pre-computed percentage.
-// The sheet's own formula engine handles the division (including a visible
-// #DIV/0! if revenue isn't entered yet), so the app no longer reads or
-// validates revenue at all.
+// Writes today's dump total (as a formula) into column R, and today's
+// Google Review count (a plain integer) into column W, of the linked
+// "Ops Scorecard" Google Sheet -- both in one batched write, since they
+// share the same row and the same "did we find today's row" safety checks.
 //
 // Triggered automatically after an expense is added/removed (fire-and-forget
 // from the client), and by the admin-only "Push to Sheet" button on the EOD
@@ -87,6 +86,9 @@ export default async function handler(req, res) {
       .filter(e => e.date === todayStr)
       .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
+    const grLog = stateData.grLog || [];
+    const grCount = grLog.filter(g => g.date === todayStr).length;
+
     let auth;
     try {
       auth = new google.auth.JWT({
@@ -142,14 +144,18 @@ export default async function handler(req, res) {
       // does the division, including showing a visible #DIV/0! if revenue
       // isn't entered yet, rather than the app pre-validating that.
       const formula = `=${dumpTotal.toFixed(2)}/$AA${row}`;
-      await sheets.spreadsheets.values.update({
+      await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId,
-        range: `${tabTitle}!R${row}`,
-        valueInputOption: 'USER_ENTERED',
-        requestBody: { values: [[formula]] },
+        requestBody: {
+          valueInputOption: 'USER_ENTERED',
+          data: [
+            { range: `${tabTitle}!R${row}`, values: [[formula]] },
+            { range: `${tabTitle}!W${row}`, values: [[grCount]] },
+          ],
+        },
       });
 
-      res.status(200).json({ ok: true, dumpTotal, formula });
+      res.status(200).json({ ok: true, dumpTotal, grCount, formula });
     } catch (err) {
       console.error('Sheets sync failed', err);
       res.status(200).json({ ok: false, reason: 'sheets-error', detail: String(err && err.message || err) });
