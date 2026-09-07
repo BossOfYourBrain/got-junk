@@ -103,6 +103,7 @@
   .gr-corner-badge{
     background:var(--green-soft);color:var(--green);font-size:10.5px;font-weight:800;
     padding:3px 7px;border-radius:99px;flex-shrink:0;white-space:nowrap;
+    border:none;cursor:pointer;font-family:'Inter',sans-serif;
   }
   .pill.avail{background:var(--green-soft);color:var(--green);}
   .pill.oos{background:var(--amber-soft);color:var(--amber);}
@@ -821,6 +822,16 @@
   </div>
 </div>
 
+<div class="overlay" id="crewGrHistoryOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-title" id="crewGrTitle">Google Reviews</div>
+      <button class="sheet-close" onclick="closeSheet('crewGrHistoryOverlay')">✕</button>
+    </div>
+    <div id="crewGrHistoryBody"></div>
+  </div>
+</div>
+
 <div class="overlay" id="expenseOverlay">
   <div class="sheet">
     <div class="sheet-head">
@@ -1314,7 +1325,7 @@ function truckCardOut(t){
     : `<div class="no-equip">No equipment checked out yet</div>`;
   const crew = t.passenger ? `${t.driver} + ${t.passenger}` : t.driver;
   const grCount = crewGrCountToday(t);
-  const grBadge = grCount > 0 ? `<span class="gr-corner-badge">⭐ ${grCount}</span>` : '';
+  const grBadge = grCount > 0 ? `<button class="gr-corner-badge" onclick="openCrewGrHistory(${t.id})">⭐ ${grCount}</button>` : '';
   return `
   <div class="truck-card">
     <div class="truck-top">
@@ -1512,11 +1523,9 @@ function renderOpsTab(){
       <div class="etb-amount">${grTodayCount()}</div>
     </div>
   </div>`;
-  if(currentRole==='admin'){
-    html += `<button class="ops-push-all-btn" ${hasOpsScorecardLink?'':'disabled'} onclick="manualPushToSheet()">🔄 Push to Sheet</button>`;
-    if(!hasOpsScorecardLink){
-      html += `<div class="eod-link-warning">⚠️ No Ops Scorecard spreadsheet linked — add one in Spreadsheet Links.</div>`;
-    }
+  html += `<button class="ops-push-all-btn" ${hasOpsScorecardLink?'':'disabled'} onclick="manualPushToSheet()">🔄 Push to Sheet</button>`;
+  if(!hasOpsScorecardLink){
+    html += `<div class="eod-link-warning">⚠️ No Ops Scorecard spreadsheet linked — add one in Spreadsheet Links.</div>`;
   }
   return html;
 }
@@ -2073,6 +2082,19 @@ function openGrHistory(){
   document.getElementById('grHistoryOverlay').classList.add('show');
 }
 
+function grHistoryItemHtml(g, showPhoto, showRemove){
+  return `
+    <div class="gr-history-item">
+      ${showPhoto && g.photo ? `<img class="gr-history-thumb" src="${g.photo}">` : ''}
+      <div class="gr-history-main">
+        <div class="gr-history-crew">${escapeHtml(crewLabel(g.driver,g.passenger)||'Unknown')}</div>
+        ${g.comment?`<div class="gr-history-comment">${escapeHtml(g.comment)}</div>`:''}
+        <div class="gr-history-time">${dateTimeShort(g.addedAt)}</div>
+      </div>
+      ${showRemove ? `<button class="expense-remove-btn" onclick="removeGrEntry('${g.id}')" title="Remove">✕</button>` : ''}
+    </div>`;
+}
+
 function renderGrHistoryBody(){
   const today = localDateStr();
   const entries = (state.grLog||[]).filter(g=>g.date===today).sort((a,b)=> new Date(b.addedAt)-new Date(a.addedAt));
@@ -2081,17 +2103,50 @@ function renderGrHistoryBody(){
     body.innerHTML = `<div class="empty-note">No Google Reviews logged yet today.</div>`;
     return;
   }
-  body.innerHTML = entries.map(g=>`
-    <div class="gr-history-item">
-      ${g.photo?`<img class="gr-history-thumb" src="${g.photo}">`:''}
-      <div class="gr-history-main">
-        <div class="gr-history-crew">${escapeHtml(crewLabel(g.driver,g.passenger)||'Unknown')}</div>
-        ${g.comment?`<div class="gr-history-comment">${escapeHtml(g.comment)}</div>`:''}
-        <div class="gr-history-time">${timeShort(g.addedAt)}</div>
-      </div>
-      <button class="expense-remove-btn" onclick="removeGrEntry('${g.id}')" title="Remove">✕</button>
-    </div>
-  `).join('');
+  body.innerHTML = entries.map(g=>grHistoryItemHtml(g, true, true)).join('');
+}
+
+/* Clicking a truck's GR badge shows reviews credited to its current crew --
+   today's (still has a photo) plus the last 3 days (photos already pruned
+   by then, per the retention policy, so text-only). */
+let crewGrHistoryTruckId = null;
+
+function openCrewGrHistory(truckId){
+  crewGrHistoryTruckId = truckId;
+  const truck = state.trucks.find(t=>t.id===truckId);
+  if(!truck) return;
+  document.getElementById('crewGrTitle').textContent = `Google Reviews — ${crewLabel(truck.driver, truck.passenger) || 'Truck '+truckId}`;
+  renderCrewGrHistoryBody();
+  document.getElementById('crewGrHistoryOverlay').classList.add('show');
+}
+
+function renderCrewGrHistoryBody(){
+  const truck = state.trucks.find(t=>t.id===crewGrHistoryTruckId);
+  const body = document.getElementById('crewGrHistoryBody');
+  if(!truck){ body.innerHTML = ''; return; }
+  const names = [truck.driver, truck.passenger].filter(Boolean);
+  const matches = (state.grLog||[]).filter(g=>
+    names.includes(g.driver) || (g.passenger && names.includes(g.passenger))
+  );
+
+  const today = localDateStr();
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-3);
+  const cutoffStr = localDateStr(cutoff);
+
+  const todays = matches.filter(g=>g.date===today).sort((a,b)=> new Date(b.addedAt)-new Date(a.addedAt));
+  const priorDays = matches.filter(g=>g.date!==today && g.date>=cutoffStr).sort((a,b)=> new Date(b.addedAt)-new Date(a.addedAt));
+
+  let html = `<div class="section-label">Today — ${todays.length}</div>`;
+  html += todays.length
+    ? todays.map(g=>grHistoryItemHtml(g, true, true)).join('')
+    : `<div class="empty-note">No reviews yet today.</div>`;
+
+  html += `<div class="section-label">Last 3 days — ${priorDays.length}</div>`;
+  html += priorDays.length
+    ? priorDays.map(g=>grHistoryItemHtml(g, false, false)).join('')
+    : `<div class="empty-note">No reviews in the last 3 days.</div>`;
+
+  body.innerHTML = html;
 }
 
 // Mirrors the Expense removal pattern: only today's entries, anyone signed
@@ -2107,7 +2162,8 @@ async function removeGrEntry(id){
   state.grLog = state.grLog.filter(g=>g.id!==id);
   addLog('🗑️', `Google Review removed (was credited to ${crewLabel(entry.driver,entry.passenger)||'Unknown'})`);
   await saveState();
-  renderGrHistoryBody();
+  if(document.getElementById('grHistoryOverlay').classList.contains('show')) renderGrHistoryBody();
+  if(document.getElementById('crewGrHistoryOverlay').classList.contains('show')) renderCrewGrHistoryBody();
   render();
   syncDumpTotal();
   showToast('Review removed');
@@ -2349,7 +2405,6 @@ function syncDumpTotal(){
 }
 
 async function manualPushToSheet(){
-  if(currentRole !== 'admin') return;
   try{
     const res = await fetch('/api/sync-dump-total', {method:'POST', credentials:'same-origin'});
     const data = await res.json();
