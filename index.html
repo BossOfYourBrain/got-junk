@@ -873,6 +873,16 @@
   </div>
 </div>
 
+<div class="overlay" id="allExpensesTodayOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-title">Today's Dump Expenses</div>
+      <button class="sheet-close" onclick="closeSheet('allExpensesTodayOverlay')">✕</button>
+    </div>
+    <div id="allExpensesTodayBody"></div>
+  </div>
+</div>
+
 <div class="overlay" id="expenseLocationsOverlay">
   <div class="sheet">
     <div class="sheet-head">
@@ -1512,7 +1522,7 @@ function renderLog(){
 function renderOpsTab(){
   const hasOpsScorecardLink = (state.spreadsheetLinks||[]).some(l=>l.purpose==='Ops Scorecard');
   let html = '';
-  html += `<div class="eod-total-banner">
+  html += `<div class="eod-total-banner" onclick="openAllExpensesToday()" style="cursor:pointer;">
     <div class="etb-total-group">
       <div class="etb-label">All Trucks — Today (Dump Cost)</div>
       <div class="etb-amount">${formatMoney(allTrucksTodayTotal())}</div>
@@ -2586,6 +2596,38 @@ function expandExpenseHistory(){
   renderExpenseHistoryBody();
 }
 
+/* All-trucks view of today's dump expenses, opened from the Ops tab's
+   Dump Cost banner -- spans every truck, unlike the per-truck drill-down. */
+function openAllExpensesToday(){
+  renderAllExpensesTodayBody();
+  document.getElementById('allExpensesTodayOverlay').classList.add('show');
+}
+
+function renderAllExpensesTodayBody(){
+  const today = localDateStr();
+  const entries = (state.expenseLog||[]).filter(e=>e.date===today).sort((a,b)=> new Date(b.addedAt)-new Date(a.addedAt));
+  const body = document.getElementById('allExpensesTodayBody');
+  if(entries.length===0){
+    body.innerHTML = `<div class="empty-note">No dump expenses logged yet today.</div>`;
+    return;
+  }
+  const total = entries.reduce((sum,e)=>sum+e.amount, 0);
+  let html = `<div class="expense-day-head" style="margin-bottom:12px;">
+    <span>Today's Total</span><span class="expense-day-total">${formatMoney(total)}</span>
+  </div>`;
+  html += entries.map(e=>`
+    <div class="expense-item">
+      <div class="expense-item-main">
+        <span class="expense-where">Truck ${e.truckId} — ${escapeHtml(e.where)}</span>
+        <span class="expense-amount">${formatMoney(e.amount)}</span>
+        <button class="expense-remove-btn" onclick="removeExpense('${e.id}')" title="Remove">✕</button>
+      </div>
+      <div class="expense-item-sub">${e.addedBy?escapeHtml(e.addedBy)+' · ':''}${timeShort(e.addedAt)}${e.note?' — "'+escapeHtml(e.note)+'"':''}</div>
+    </div>
+  `).join('');
+  body.innerHTML = html;
+}
+
 // Only today's expenses can be removed this way -- once a day is in the
 // past it's treated as a closed record, same as the rest of the app's
 // history (Log entries, past EOD data) staying put once the day's over.
@@ -2600,7 +2642,8 @@ async function removeExpense(id){
   state.expenseLog = state.expenseLog.filter(e=>e.id!==id);
   addLog('🗑️', `Expense removed — ${formatMoney(entry.amount)} at ${entry.where} (Truck ${entry.truckId})`);
   await saveState();
-  renderExpenseHistoryBody();
+  if(document.getElementById('expenseHistoryOverlay').classList.contains('show')) renderExpenseHistoryBody();
+  if(document.getElementById('allExpensesTodayOverlay').classList.contains('show')) renderAllExpensesTodayBody();
   render();
   syncDumpTotal();
   showToast('Expense removed');
