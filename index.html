@@ -100,6 +100,10 @@
     padding:4px 10px;border-radius:99px;font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;
   }
   .pill.out{background:var(--amber-soft);color:var(--amber);}
+  .gr-corner-badge{
+    background:var(--green-soft);color:var(--green);font-size:10.5px;font-weight:800;
+    padding:3px 7px;border-radius:99px;flex-shrink:0;white-space:nowrap;
+  }
   .pill.avail{background:var(--green-soft);color:var(--green);}
   .pill.oos{background:var(--amber-soft);color:var(--amber);}
 
@@ -343,6 +347,11 @@
     font-family:'Inter',sans-serif;
   }
   .etb-push-btn:disabled{opacity:.4;cursor:not-allowed;}
+  .ops-push-all-btn{
+    width:100%;padding:12px;border-radius:12px;border:none;background:var(--blue);color:#fff;
+    font-size:14px;font-weight:700;cursor:pointer;margin-bottom:14px;font-family:'Inter',sans-serif;
+  }
+  .ops-push-all-btn:disabled{opacity:.4;cursor:not-allowed;}
   .eod-link-warning{
     background:var(--red-soft);color:var(--red);border-radius:10px;padding:9px 12px;
     font-size:12px;font-weight:700;margin:-6px 0 14px;
@@ -366,6 +375,24 @@
   .expense-where{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .expense-amount{font-family:'Archivo Black',sans-serif;font-size:13.5px;color:var(--ink);flex-shrink:0;}
   .expense-item-sub{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+
+  /* Google Review photo picker + history */
+  .gr-paste-zone{
+    margin-top:8px;padding:14px;border:1.5px dashed var(--line);border-radius:10px;
+    min-height:20px;font-size:13px;color:var(--ink-soft);text-align:center;outline:none;
+  }
+  .gr-paste-zone:empty::before{
+    content: attr(data-placeholder);
+  }
+  .gr-history-item{
+    display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);
+  }
+  .gr-history-item:last-child{border-bottom:none;}
+  .gr-history-thumb{width:52px;height:52px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#EEF2F8;}
+  .gr-history-main{flex:1;min-width:0;}
+  .gr-history-crew{font-weight:700;font-size:13.5px;}
+  .gr-history-comment{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .gr-history-time{font-size:11px;color:var(--ink-soft);margin-top:2px;}
 
   /* Equipment return confirmation */
   .equip-return-row{
@@ -549,6 +576,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="fleet">Fleet</button>
     <button class="tab-btn" data-tab="ops">EOD</button>
+    <button class="tab-btn" data-tab="opstab">Ops</button>
     <button class="tab-btn" data-tab="shop">Shop Inventory</button>
   </div>
 
@@ -755,6 +783,41 @@
     <div class="sheet-submit">
       <button class="btn btn-primary" onclick="submitSwap()">Confirm Swap</button>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="grOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-title" id="grTitle">Add Google Review</div>
+      <button class="sheet-close" onclick="closeSheet('grOverlay')">✕</button>
+    </div>
+    <div class="login-sub" id="grCreditLine"></div>
+    <div class="field">
+      <label>Photo (required)</label>
+      <button type="button" class="btn btn-outline" style="width:100%;" onclick="document.getElementById('grPhotoInput').click()">📷 Choose Photo</button>
+      <input type="file" id="grPhotoInput" accept="image/*" style="display:none" onchange="handleGrFileSelect(event)">
+      <div class="gr-paste-zone" id="grPasteZone" contenteditable="true" data-placeholder="Or long-press here and choose Paste"></div>
+      <img class="photo-preview" id="grPhotoPreview" style="display:none;">
+    </div>
+    <div class="field">
+      <label>Comment (optional)</label>
+      <input type="text" id="grCommentInput" placeholder="e.g. mentioned by name in the review">
+    </div>
+    <div class="login-error" id="grError"></div>
+    <div class="sheet-submit">
+      <button class="btn btn-primary" onclick="submitGoogleReview()">Add Review</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="grHistoryOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-title">Today's Google Reviews</div>
+      <button class="sheet-close" onclick="closeSheet('grHistoryOverlay')">✕</button>
+    </div>
+    <div id="grHistoryBody"></div>
   </div>
 </div>
 
@@ -1005,6 +1068,7 @@ function defaultState(locationId){
     expenseLog: [],
     expenseLocations: defaultExpenseLocations(locationId),
     spreadsheetLinks: [],
+    grLog: [],
     log: []
   };
 }
@@ -1020,6 +1084,7 @@ function migrateState(s){
   if(!s.expenseLog) s.expenseLog = [];
   if(!s.expenseLocations) s.expenseLocations = defaultExpenseLocations(currentLocationId);
   if(!s.spreadsheetLinks) s.spreadsheetLinks = [];
+  if(!s.grLog) s.grLog = [];
   s.trucks.forEach(t=>{
     if(t.problem===undefined) t.problem = null;
     if(t.lastEod===undefined) t.lastEod = null;
@@ -1048,6 +1113,7 @@ async function loadState(){
       const before = JSON.stringify(data.value);
       state = migrateState(data.value);
       pruneOldExpenses();
+      pruneOldGrPhotos();
       // If migration actually changed the shape, persist it immediately so
       // the next poll (and every other device) sees the same fields —
       // otherwise the in-memory fix would get overwritten by the next
@@ -1145,6 +1211,37 @@ function pruneOldExpenses(){
   state.expenseLog = (state.expenseLog||[]).filter(e=>e.date >= cutoffStr);
 }
 
+// Google Review records persist indefinitely (the count/credit history is
+// what a future per-person feature needs), but the photo itself is only
+// useful on the day it's posted -- so only the photo gets cleared once a
+// record's day has passed, never the whole record.
+function pruneOldGrPhotos(){
+  const today = localDateStr();
+  (state.grLog||[]).forEach(g=>{
+    if(g.date !== today && g.photo){
+      g.photo = null;
+    }
+  });
+}
+
+function grTodayCount(){
+  const today = localDateStr();
+  return (state.grLog||[]).filter(g=>g.date===today).length;
+}
+
+// GR records aren't tied to a truck (see PRD) -- so "this truck's GR count"
+// means "reviews credited today to whoever's currently driving/riding it."
+// If the crew swaps trucks mid-day, the count follows them, not the vehicle.
+function crewGrCountToday(t){
+  const today = localDateStr();
+  const names = [t.driver, t.passenger].filter(Boolean);
+  if(names.length===0) return 0;
+  return (state.grLog||[]).filter(g=>{
+    if(g.date !== today) return false;
+    return names.includes(g.driver) || (g.passenger && names.includes(g.passenger));
+  }).length;
+}
+
 function dateTimeShort(iso){
   if(!iso) return '';
   const d = new Date(iso);
@@ -1167,6 +1264,7 @@ function render(){
   const main = document.getElementById('mainContent');
   if(activeTab === 'fleet') main.innerHTML = renderFleet();
   else if(activeTab === 'ops') main.innerHTML = renderOps();
+  else if(activeTab === 'opstab') main.innerHTML = renderOpsTab();
   else if(activeTab === 'shop') main.innerHTML = renderShop();
   else main.innerHTML = renderLog();
 }
@@ -1215,6 +1313,8 @@ function truckCardOut(t){
     ? `<div class="equip-chips">${items.map(i=>`<span class="chip ${i.category==='bag'?'tag-bag':''}">${i.icon} ${i.name}</span>`).join('')}</div>`
     : `<div class="no-equip">No equipment checked out yet</div>`;
   const crew = t.passenger ? `${t.driver} + ${t.passenger}` : t.driver;
+  const grCount = crewGrCountToday(t);
+  const grBadge = grCount > 0 ? `<span class="gr-corner-badge">⭐ ${grCount}</span>` : '';
   return `
   <div class="truck-card">
     <div class="truck-top">
@@ -1223,6 +1323,7 @@ function truckCardOut(t){
         <div class="label">Truck ${t.id}</div>
         <div class="crew">${crew}</div>
       </div>
+      ${grBadge}
       <span class="pill out">Out</span>
     </div>
     <div class="truck-body">
@@ -1234,9 +1335,16 @@ function truckCardOut(t){
         <button class="btn btn-danger-outline" onclick="openCheckIn(${t.id})">Check in</button>
       </div>
       <div class="btn-row" style="margin-top:8px;">
+        <button class="btn btn-ghost" style="width:100%;" onclick="toggleMoreActions(${t.id})">${expandedMoreActions.has(t.id)?'▴ Hide Actions':'▾ More Actions'}</button>
+      </div>
+      ${expandedMoreActions.has(t.id) ? `
+      <div class="btn-row" style="margin-top:8px;">
         <button class="btn btn-ghost" onclick="openAddEquip(${t.id})">+ Equipment</button>
         <button class="btn btn-ghost" onclick="openSwapTruck(${t.id})">🔀 Swap</button>
       </div>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn btn-ghost" style="width:100%;" onclick="openAddGoogleReview(${t.id})">⭐ Add Review</button>
+      </div>` : ''}
     </div>
   </div>`;
 }
@@ -1317,6 +1425,16 @@ function renderShop(){
   return html;
 }
 
+// Normalizes a typed name so the same person doesn't fragment into multiple
+// spellings across records ("tom", "TOM", " Tom " all become "Tom"). Doesn't
+// fix genuinely different spellings of the same name -- that would need an
+// actual managed roster, not just formatting.
+function titleCase(str){
+  return String(str||'').trim().replace(/\s+/g,' ').replace(/\w\S*/g, w =>
+    w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+  );
+}
+
 function crewLabel(driver, passenger){
   if(!driver) return null;
   return passenger ? `${driver} / ${passenger}` : driver;
@@ -1375,6 +1493,34 @@ function renderLog(){
   return html;
 }
 
+// The new Ops tab: cross-cutting day-level totals (Dump Cost, Google
+// Reviews), as opposed to EOD which stays focused on per-truck detail.
+// One shared Push button pushes both values to the Ops Scorecard in a
+// single sync call.
+function renderOpsTab(){
+  const hasOpsScorecardLink = (state.spreadsheetLinks||[]).some(l=>l.purpose==='Ops Scorecard');
+  let html = '';
+  html += `<div class="eod-total-banner">
+    <div class="etb-total-group">
+      <div class="etb-label">All Trucks — Today (Dump Cost)</div>
+      <div class="etb-amount">${formatMoney(allTrucksTodayTotal())}</div>
+    </div>
+  </div>`;
+  html += `<div class="eod-total-banner" onclick="openGrHistory()" style="cursor:pointer;">
+    <div class="etb-total-group">
+      <div class="etb-label">Google Reviews — Today</div>
+      <div class="etb-amount">${grTodayCount()}</div>
+    </div>
+  </div>`;
+  if(currentRole==='admin'){
+    html += `<button class="ops-push-all-btn" ${hasOpsScorecardLink?'':'disabled'} onclick="manualPushToSheet()">🔄 Push to Sheet</button>`;
+    if(!hasOpsScorecardLink){
+      html += `<div class="eod-link-warning">⚠️ No Ops Scorecard spreadsheet linked — add one in Spreadsheet Links.</div>`;
+    }
+  }
+  return html;
+}
+
 function renderOps(){
   if(state.trucks.length===0){
     return `<div class="empty-note">No trucks configured yet. Tap ⚙ in the header to add your fleet.</div>`;
@@ -1396,17 +1542,6 @@ function renderOps(){
     return a.id - b.id;
   });
   let html = '';
-  const hasOpsScorecardLink = (state.spreadsheetLinks||[]).some(l=>l.purpose==='Ops Scorecard');
-  html += `<div class="eod-total-banner">
-    <div class="etb-total-group">
-      <div class="etb-label">All Trucks — Today</div>
-      <div class="etb-amount">${formatMoney(allTrucksTodayTotal())}</div>
-    </div>
-    ${currentRole==='admin' ? `<button class="etb-push-btn" ${hasOpsScorecardLink?'':'disabled'} onclick="manualPushToSheet()">🔄 Push to Sheet</button>` : ''}
-  </div>`;
-  if(currentRole==='admin' && !hasOpsScorecardLink){
-    html += `<div class="eod-link-warning">⚠️ No Ops Scorecard spreadsheet linked — add one in Spreadsheet Links.</div>`;
-  }
   const missingEquip = state.equipment.filter(e=>e.missing);
   if(missingEquip.length){
     html += `<div class="ops-missing-summary">
@@ -1521,8 +1656,8 @@ function toggleEquip(id, mode){
 }
 
 function submitCheckout(){
-  const driver = document.getElementById('driverInput').value.trim();
-  const passenger = document.getElementById('passengerInput').value.trim();
+  const driver = titleCase(document.getElementById('driverInput').value);
+  const passenger = titleCase(document.getElementById('passengerInput').value);
   if(!driver){
     showToast('Enter a driver name');
     return;
@@ -1786,6 +1921,30 @@ function toggleChecklistItem(cat){
   if(el) el.classList.toggle('selected');
 }
 
+// Shared resize/compress step for any new photo upload flow (used by Add
+// Google Review's picker and paste handlers). The existing EOD photo
+// handler below has its own inline copy of this same logic -- left as-is
+// rather than refactored, since it's working code with no reason to touch it.
+function resizeImageBlob(blob, callback){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const maxW = 800;
+      const scale = Math.min(1, maxW/img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width*scale;
+      canvas.height = img.height*scale;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      callback(canvas.toDataURL('image/jpeg',0.7));
+    };
+    img.src = e.target.result;
+  };
+  reader.onerror = ()=>{ showToast("Couldn't read that photo — try again"); };
+  reader.readAsDataURL(blob);
+}
+
 function handlePhotoSelect(event){
   const file = event.target.files[0];
   if(!file) return;
@@ -1810,6 +1969,157 @@ function handlePhotoSelect(event){
   };
   reader.onerror = ()=>{ showToast("Couldn't read that photo — try again"); };
   reader.readAsDataURL(file);
+}
+
+/* Add Google Review -- Out truck only, used purely to auto-fill the crew's
+   names at the moment of posting. The saved record has no ongoing link to
+   the truck afterward (see PRD): it's a snapshot, not a foreign key. */
+function openAddGoogleReview(truckId){
+  const truck = state.trucks.find(t=>t.id===truckId);
+  if(!truck) return;
+  grTruckId = truckId;
+  pendingGrPhoto = null;
+  document.getElementById('grTitle').textContent = 'Add Google Review — Truck ' + truckId;
+  document.getElementById('grCreditLine').textContent = `Crediting: ${crewLabel(truck.driver, truck.passenger) || 'Unknown crew'}`;
+  document.getElementById('grCommentInput').value = '';
+  document.getElementById('grError').textContent = '';
+  document.getElementById('grPhotoPreview').style.display = 'none';
+  document.getElementById('grPasteZone').setAttribute('data-placeholder', 'Or long-press here and choose Paste');
+  document.getElementById('grPhotoInput').value = '';
+  document.getElementById('grOverlay').classList.add('show');
+}
+
+function updateGrPhotoPreview(){
+  const preview = document.getElementById('grPhotoPreview');
+  if(pendingGrPhoto){
+    preview.src = pendingGrPhoto;
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+function handleGrFileSelect(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  resizeImageBlob(file, (dataUrl)=>{
+    pendingGrPhoto = dataUrl;
+    updateGrPhotoPreview();
+  });
+}
+
+function handleGrPaste(event){
+  const items = (event.clipboardData || window.clipboardData) ? (event.clipboardData || window.clipboardData).items : null;
+  event.preventDefault();
+  let found = false;
+  if(items){
+    for(const item of items){
+      if(item.type && item.type.indexOf('image/')===0){
+        found = true;
+        const blob = item.getAsFile();
+        resizeImageBlob(blob, (dataUrl)=>{
+          pendingGrPhoto = dataUrl;
+          updateGrPhotoPreview();
+          document.getElementById('grPasteZone').setAttribute('data-placeholder', '✓ Image pasted');
+        });
+        break;
+      }
+    }
+  }
+  if(!found){
+    showToast('No image found on your clipboard — copy the screenshot first');
+  }
+}
+
+// The paste zone is deliberately kept empty forever (a CSS :empty::before
+// shows the placeholder text via its data-placeholder attribute) -- so any
+// attempt to actually type into it, not just paste an image, is blocked.
+document.getElementById('grPasteZone').addEventListener('paste', handleGrPaste);
+document.getElementById('grPasteZone').addEventListener('beforeinput', function(e){ e.preventDefault(); });
+
+async function submitGoogleReview(){
+  const errEl = document.getElementById('grError');
+  errEl.textContent = '';
+  if(!pendingGrPhoto){ errEl.textContent = 'Add a photo of the review'; return; }
+  const truck = state.trucks.find(t=>t.id===grTruckId);
+  if(!truck){ errEl.textContent = 'Something changed — try again'; return; }
+
+  const comment = document.getElementById('grCommentInput').value.trim() || null;
+  const now = new Date();
+  const entry = {
+    id: 'gr-' + now.getTime() + '-' + Math.random().toString(36).slice(2,7),
+    driver: truck.driver,
+    passenger: truck.passenger || null,
+    comment,
+    photo: pendingGrPhoto,
+    addedAt: now.toISOString(),
+    date: localDateStr(now)
+  };
+  if(!state.grLog) state.grLog = [];
+  state.grLog.push(entry);
+  pruneOldGrPhotos();
+  addLog('⭐', `Google Review added — credited to ${crewLabel(entry.driver, entry.passenger)||'Unknown'}${comment?' ("'+comment+'")':''}`);
+  closeSheet('grOverlay');
+  await saveState();
+  render();
+  syncDumpTotal();
+  showToast('Google Review added');
+}
+
+/* Today's Google Reviews list -- opened from the GR total banner on the
+   Ops tab, since a review isn't tied to any one truck to browse from. */
+function openGrHistory(){
+  renderGrHistoryBody();
+  document.getElementById('grHistoryOverlay').classList.add('show');
+}
+
+function renderGrHistoryBody(){
+  const today = localDateStr();
+  const entries = (state.grLog||[]).filter(g=>g.date===today).sort((a,b)=> new Date(b.addedAt)-new Date(a.addedAt));
+  const body = document.getElementById('grHistoryBody');
+  if(entries.length===0){
+    body.innerHTML = `<div class="empty-note">No Google Reviews logged yet today.</div>`;
+    return;
+  }
+  body.innerHTML = entries.map(g=>`
+    <div class="gr-history-item">
+      ${g.photo?`<img class="gr-history-thumb" src="${g.photo}">`:''}
+      <div class="gr-history-main">
+        <div class="gr-history-crew">${escapeHtml(crewLabel(g.driver,g.passenger)||'Unknown')}</div>
+        ${g.comment?`<div class="gr-history-comment">${escapeHtml(g.comment)}</div>`:''}
+        <div class="gr-history-time">${timeShort(g.addedAt)}</div>
+      </div>
+      <button class="expense-remove-btn" onclick="removeGrEntry('${g.id}')" title="Remove">✕</button>
+    </div>
+  `).join('');
+}
+
+// Mirrors the Expense removal pattern: only today's entries, anyone signed
+// in, with a confirmation prompt -- no admin gate needed for a same-day correction.
+async function removeGrEntry(id){
+  const entry = (state.grLog||[]).find(g=>g.id===id);
+  if(!entry) return;
+  if(entry.date !== localDateStr()){
+    showToast("Only today's reviews can be removed");
+    return;
+  }
+  if(!confirm(`Remove this Google Review credited to ${crewLabel(entry.driver,entry.passenger)||'Unknown'}?`)) return;
+  state.grLog = state.grLog.filter(g=>g.id!==id);
+  addLog('🗑️', `Google Review removed (was credited to ${crewLabel(entry.driver,entry.passenger)||'Unknown'})`);
+  await saveState();
+  renderGrHistoryBody();
+  render();
+  syncDumpTotal();
+  showToast('Review removed');
+}
+
+/* Fleet tab "More Actions" expand/collapse -- tracked in JS state (not just
+   DOM) so it survives the 5-second poll re-render instead of collapsing
+   back the moment any background refresh happens. */
+function toggleMoreActions(truckId){
+  if(expandedMoreActions.has(truckId)) expandedMoreActions.delete(truckId);
+  else expandedMoreActions.add(truckId);
+  render();
 }
 
 function submitCheckIn(){
@@ -2044,7 +2354,7 @@ async function manualPushToSheet(){
     const res = await fetch('/api/sync-dump-total', {method:'POST', credentials:'same-origin'});
     const data = await res.json();
     if(data.ok){
-      showToast(`Pushed ${formatMoney(data.dumpTotal)} to the Ops Scorecard`);
+      showToast(`Pushed ${formatMoney(data.dumpTotal)} and ${data.grCount} review(s) to the Ops Scorecard`);
     } else {
       console.error('Push to Sheet failed:', data);
       const messages = {
@@ -2065,6 +2375,9 @@ async function manualPushToSheet(){
    Out trucks. Checked-out time, truck problems, and expense history all
    stay with each vehicle since they're keyed to the truck, not the driver. */
 let swapSourceTruckId = null;
+let grTruckId = null;
+let pendingGrPhoto = null;
+let expandedMoreActions = new Set();
 let swapPendingTargetId = null;
 
 function openSwapTruck(truckId){
