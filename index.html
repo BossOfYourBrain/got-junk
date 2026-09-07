@@ -105,6 +105,7 @@
     padding:3px 7px;border-radius:99px;flex-shrink:0;white-space:nowrap;
     border:none;cursor:pointer;font-family:'Inter',sans-serif;
   }
+  .gr-badge-row{margin-bottom:8px;}
   .pill.avail{background:var(--green-soft);color:var(--green);}
   .pill.oos{background:var(--amber-soft);color:var(--amber);}
 
@@ -1334,10 +1335,10 @@ function truckCardOut(t){
         <div class="label">Truck ${t.id}</div>
         <div class="crew">${crew}</div>
       </div>
-      ${grBadge}
       <span class="pill out">Out</span>
     </div>
     <div class="truck-body">
+      ${grBadge ? `<div class="gr-badge-row">${grBadge}</div>` : ''}
       <div class="checked-time">Checked out at ${timeShort(t.checkedOutAt)}</div>
       ${problemBlock(t)}
       ${chips}
