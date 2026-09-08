@@ -396,6 +396,15 @@
   .gr-history-crew{font-weight:700;font-size:13.5px;}
   .gr-history-comment{font-size:12px;color:var(--ink-soft);margin-top:2px;}
   .gr-history-time{font-size:11px;color:var(--ink-soft);margin-top:2px;}
+  .gr-tally-row{
+    display:flex;justify-content:space-between;align-items:center;padding:8px 0;
+    border-bottom:1px solid var(--line);font-size:13.5px;font-weight:600;
+  }
+  .gr-tally-row:last-child{border-bottom:none;}
+  .gr-tally-count{
+    background:var(--green-soft);color:var(--green);font-weight:800;font-size:12px;
+    padding:2px 9px;border-radius:99px;
+  }
 
   /* Equipment return confirmation */
   .equip-return-row{
@@ -1102,7 +1111,7 @@ function defaultState(locationId){
   };
 }
 
-const SPREADSHEET_LINK_PURPOSES = ['Ops Scorecard'];
+const SPREADSHEET_LINK_PURPOSES = ['Ops Scorecard', 'Junk Route Metrics'];
 
 // Fills in any fields older saved data is missing. Used both on initial
 // load and every poll cycle, so a location's data never regresses to a
@@ -2219,7 +2228,27 @@ function renderGrHistoryBody(){
     body.innerHTML = `<div class="empty-note">No Google Reviews logged yet today.</div>`;
     return;
   }
-  body.innerHTML = entries.map(g=>grHistoryItemHtml(g, true, true)).join('');
+
+  // Individual tally: the banner/count above stays "total uploads" (a
+  // shared review counts once) -- this breaks that same set of records
+  // down by person instead, since a shared review credits everyone on it.
+  // Pure display computation; grLog itself never changes shape for this.
+  const tally = new Map();
+  entries.forEach(g=>{
+    if(g.driver) tally.set(g.driver, (tally.get(g.driver)||0)+1);
+    if(g.passenger) tally.set(g.passenger, (tally.get(g.passenger)||0)+1);
+  });
+  const tallyRows = [...tally.entries()].sort((a,b)=> b[1]-a[1] || a[0].localeCompare(b[0]));
+
+  let html = `<div class="section-label">Individual counts — today</div>`;
+  html += tallyRows.map(([name,count])=>
+    `<div class="gr-tally-row"><span class="gr-tally-name">${escapeHtml(name)}</span><span class="gr-tally-count">${count}</span></div>`
+  ).join('');
+
+  html += `<div class="section-label" style="margin-top:16px;">Uploads — today</div>`;
+  html += entries.map(g=>grHistoryItemHtml(g, true, true)).join('');
+
+  body.innerHTML = html;
 }
 
 /* Clicking a truck's GR badge shows reviews credited to its current crew --
@@ -2528,7 +2557,11 @@ async function manualPushToSheet(){
     const res = await fetch('/api/sync-dump-total', {method:'POST', credentials:'same-origin'});
     const data = await res.json();
     if(data.ok){
-      showToast(`Pushed ${formatMoney(data.dumpTotal)} and ${data.grCount} review(s) to the Ops Scorecard`);
+      let msg = `Pushed ${formatMoney(data.dumpTotal)} and ${data.grCount} review(s) to the Ops Scorecard`;
+      if(data.junkRoute && data.junkRoute.synced && data.junkRoute.peopleUpdated > 0){
+        msg += ` · ${data.junkRoute.peopleUpdated} individual GR total(s) updated on the Junk Route sheet`;
+      }
+      showToast(msg);
     } else {
       console.error('Push to Sheet failed:', data);
       const messages = {
