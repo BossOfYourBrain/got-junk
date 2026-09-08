@@ -1479,7 +1479,7 @@ function crewLabel(driver, passenger){
 /* Employee roster helpers -- shared by every "pick a person" dropdown
    across the app (Checkout, Out of Service, Report a Problem, Edit EOD). */
 function employeeDisplayName(emp){
-  return `${emp.firstName || ''} ${(emp.lastName || '').slice(0,3)}`.trim();
+  return `${emp.firstName || ''} ${emp.lastName || ''}`.trim();
 }
 
 function sortedRoster(){
