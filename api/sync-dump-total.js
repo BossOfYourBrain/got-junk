@@ -104,8 +104,23 @@ async function syncJunkRouteMetrics(sheets, stateData, todayStr) {
   });
   const colCValues = (colCRes.data.values || []).map(r => (r[0] || '').toString().trim());
   const nameToRow = new Map();
-  colCValues.forEach((name, idx) => { if (name) nameToRow.set(name, 6 + idx); });
-  let nextAppendRow = 6 + colCValues.length;
+  // The append point is the FIRST blank row, not "one past the last
+  // non-blank value in the whole column" -- a single stray value sitting
+  // far down the sheet (old test data, a leftover note, anything) would
+  // otherwise drag new rows down to wherever that stray value happens to
+  // be, regardless of how far below the real, contiguous data it is.
+  let firstBlankRow = null;
+  colCValues.forEach((name, idx) => {
+    const rowNum = 6 + idx;
+    if (name) {
+      nameToRow.set(name, rowNum);
+    } else if (firstBlankRow === null) {
+      firstBlankRow = rowNum;
+    }
+  });
+  // If every row Google returned was non-blank (no gap found at all), the
+  // next real row after the returned range is the correct append point.
+  let nextAppendRow = firstBlankRow !== null ? firstBlankRow : 6 + colCValues.length;
 
   const writes = [];
   for (const { concatenateName, count } of personTotals.values()) {
