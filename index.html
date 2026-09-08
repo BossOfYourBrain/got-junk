@@ -160,6 +160,7 @@
   }
   .overlay.show{opacity:1;pointer-events:auto;}
   #expenseOverlay{z-index:55;}
+  #equipIssueOverlay{z-index:55;}
   .sheet{
     background:#fff;width:100%;max-width:640px;margin:0 auto;border-radius:20px 20px 0 0;
     padding:20px 18px 22px;max-height:86vh;overflow-y:auto;
@@ -652,11 +653,13 @@
     </div>
     <div class="field">
       <label>Driver</label>
-      <input type="text" id="driverInput" placeholder="e.g. Tom">
+      <select class="login-location-select" id="driverSelect" onchange="handleRosterSelectChange(this,'driverOtherInput'); refreshPassengerRosterOptions();"></select>
+      <input type="text" id="driverOtherInput" placeholder="Type driver's name" style="display:none;margin-top:8px;">
     </div>
     <div class="field">
       <label>Passenger (optional)</label>
-      <input type="text" id="passengerInput" placeholder="e.g. Lonnie">
+      <select class="login-location-select" id="passengerSelect" onchange="handleRosterSelectChange(this,'passengerOtherInput')"></select>
+      <input type="text" id="passengerOtherInput" placeholder="Type passenger's name" style="display:none;margin-top:8px;">
     </div>
     <div class="field">
       <label>Equipment to take</label>
@@ -673,10 +676,6 @@
     <div class="sheet-head">
       <div class="sheet-title" id="addEquipTitle">Add equipment</div>
       <button class="sheet-close" onclick="closeSheet('addEquipOverlay')">✕</button>
-    </div>
-    <div class="field">
-      <label>Your name</label>
-      <input type="text" id="addedByInput" placeholder="e.g. Lonnie">
     </div>
     <div class="field">
       <label>Available at shop</label>
@@ -696,7 +695,8 @@
     </div>
     <div class="field">
       <label>Your name</label>
-      <input type="text" id="oosNameInput" placeholder="e.g. Tom">
+      <select class="login-location-select" id="oosNameSelect" onchange="handleRosterSelectChange(this,'oosNameOtherInput')"></select>
+      <input type="text" id="oosNameOtherInput" placeholder="Type your name" style="display:none;margin-top:8px;">
     </div>
     <div class="field">
       <label>Reason (optional)</label>
@@ -736,8 +736,9 @@
       <button class="sheet-close" onclick="closeSheet('checkInOverlay')">✕</button>
     </div>
     <div class="field" id="eodEditedByField" style="display:none;">
-      <label>Edited by (optional)</label>
-      <input type="text" id="eodEditedByInput" placeholder="e.g. Lonnie">
+      <label>Edited by</label>
+      <select class="login-location-select" id="eodEditedBySelect" onchange="handleRosterSelectChange(this,'eodEditedByOtherInput')"></select>
+      <input type="text" id="eodEditedByOtherInput" placeholder="Type your name" style="display:none;margin-top:8px;">
     </div>
     <div class="field" id="equipReturnField" style="display:none;">
       <label>Equipment on this truck</label>
@@ -851,10 +852,6 @@
       <label>Note (optional)</label>
       <input type="text" id="expenseNoteInput" placeholder="e.g. receipt #1234">
     </div>
-    <div class="field">
-      <label>Logged by (optional)</label>
-      <input type="text" id="expenseLoggedByInput" placeholder="e.g. Tom">
-    </div>
     <div class="login-error" id="expenseError"></div>
     <div class="sheet-submit">
       <button class="btn btn-primary" onclick="submitExpense()">Add Expense</button>
@@ -906,7 +903,15 @@
     </div>
     <div class="login-sub">Connect this location's Google Sheets. The "Ops Scorecard" tag tells the app which one to push the Dump % to.</div>
     <div id="spreadsheetLinksList"></div>
-    <div class="field" style="margin-top:14px;">
+
+    <div class="manage-section" style="margin-top:18px;">
+      <label style="display:block;font-size:12px;font-weight:800;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Employee Roster</label>
+      <div class="login-sub" style="margin-bottom:10px;">Powers the Driver/Passenger and other name dropdowns across the app. Pulled from the linked Ops Scorecard's "Tables" tab — refresh here whenever employees change.</div>
+      <div id="employeeRosterStatus" class="msub" style="margin-bottom:10px;"></div>
+      <button class="btn btn-outline" style="width:100%;" id="refreshRosterBtn" onclick="refreshEmployeeRoster()">🔄 Refresh Employee List</button>
+    </div>
+
+    <div class="field" style="margin-top:18px;">
       <label>Name</label>
       <input type="text" id="newSheetLinkName" placeholder="e.g. Ops Scorecard">
     </div>
@@ -1081,7 +1086,7 @@ function defaultExpenseLocations(locationId){
 function defaultState(locationId){
   const preset = LOCATION_FLEET_PRESETS[locationId] || LOCATION_FLEET_PRESETS['vancouver-island'];
   return {
-    trucks: preset.trucks.map(id=>({id, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null, oosBy:null, oosReason:null, oosSince:null})),
+    trucks: preset.trucks.map(id=>({id, status:'available', driver:null, driverEmpNumber:null, passenger:null, passengerEmpNumber:null, checkedOutAt:null, problem:null, lastEod:null, oosBy:null, oosByEmpNumber:null, oosReason:null, oosSince:null})),
     equipment: preset.equipment.map(([name,icon,category])=>({
       id: name.toLowerCase().replace(/[^a-z0-9]+/g,'-'),
       name, icon, category, truckId:null, lastUser:null, lastUserPassenger:null, lastAction:null, lastTs:null,
@@ -1091,6 +1096,8 @@ function defaultState(locationId){
     expenseLocations: defaultExpenseLocations(locationId),
     spreadsheetLinks: [],
     grLog: [],
+    employeeRoster: [],
+    employeeRosterSyncedAt: null,
     log: []
   };
 }
@@ -1107,12 +1114,19 @@ function migrateState(s){
   if(!s.expenseLocations) s.expenseLocations = defaultExpenseLocations(currentLocationId);
   if(!s.spreadsheetLinks) s.spreadsheetLinks = [];
   if(!s.grLog) s.grLog = [];
+  if(!s.employeeRoster) s.employeeRoster = [];
+  if(s.employeeRosterSyncedAt===undefined) s.employeeRosterSyncedAt = null;
   s.trucks.forEach(t=>{
     if(t.problem===undefined) t.problem = null;
     if(t.lastEod===undefined) t.lastEod = null;
     if(t.oosBy===undefined) t.oosBy = null;
     if(t.oosReason===undefined) t.oosReason = null;
     if(t.oosSince===undefined) t.oosSince = null;
+    if(t.driverEmpNumber===undefined) t.driverEmpNumber = null;
+    if(t.passengerEmpNumber===undefined) t.passengerEmpNumber = null;
+    if(t.oosByEmpNumber===undefined) t.oosByEmpNumber = null;
+    if(t.problem && t.problem.reportedByEmpNumber===undefined) t.problem.reportedByEmpNumber = null;
+    if(t.lastEod && t.lastEod.lastEditedByEmpNumber===undefined) t.lastEod.lastEditedByEmpNumber = null;
   });
   s.equipment.forEach(e=>{
     if(e.missing===undefined) e.missing = false;
@@ -1462,6 +1476,63 @@ function crewLabel(driver, passenger){
   return passenger ? `${driver} / ${passenger}` : driver;
 }
 
+/* Employee roster helpers -- shared by every "pick a person" dropdown
+   across the app (Checkout, Out of Service, Report a Problem, Edit EOD). */
+function employeeDisplayName(emp){
+  return `${emp.firstName || ''} ${(emp.lastName || '').slice(0,3)}`.trim();
+}
+
+function sortedRoster(){
+  return [...(state.employeeRoster||[])].sort((a,b)=>
+    employeeDisplayName(a).localeCompare(employeeDisplayName(b))
+  );
+}
+
+function findEmployeeByNumber(empNumber){
+  return (state.employeeRoster||[]).find(e=>String(e.empNumber)===String(empNumber));
+}
+
+function rosterOptionsHtml(excludeEmpNumber){
+  return sortedRoster()
+    .filter(e=>!excludeEmpNumber || String(e.empNumber)!==String(excludeEmpNumber))
+    .map(e=>`<option value="${escapeHtml(String(e.empNumber))}">${escapeHtml(employeeDisplayName(e))}</option>`)
+    .join('');
+}
+
+// Required fields (Driver, Out of Service, Report a Problem, Edit EOD): a
+// disabled placeholder forces an actual choice -- roster pick or Other --
+// before the form can submit.
+function buildRequiredRosterSelect(excludeEmpNumber){
+  return `<option value="" disabled selected>Choose a person…</option>${rosterOptionsHtml(excludeEmpNumber)}<option value="__other__">Other — type a name</option>`;
+}
+
+// Optional fields (Passenger): "None" is itself a valid, selectable choice.
+function buildOptionalRosterSelect(excludeEmpNumber){
+  return `<option value="">None</option>${rosterOptionsHtml(excludeEmpNumber)}<option value="__other__">Other — type a name</option>`;
+}
+
+// Shows/hides the free-text fallback input next to a roster <select>.
+function handleRosterSelectChange(selectEl, otherInputId){
+  const otherInput = document.getElementById(otherInputId);
+  if(otherInput) otherInput.style.display = selectEl.value === '__other__' ? 'block' : 'none';
+}
+
+// Reads a roster select + its Other fallback input, returning the name to
+// store and the employee number to link (null if Other/None was used).
+function readRosterField(selectId, otherInputId){
+  const select = document.getElementById(selectId);
+  if(!select) return { name: null, empNumber: null };
+  const val = select.value;
+  if(val === '__other__'){
+    const otherInput = document.getElementById(otherInputId);
+    const typed = otherInput ? otherInput.value.trim() : '';
+    return { name: typed || null, empNumber: null };
+  }
+  if(!val) return { name: null, empNumber: null };
+  const emp = findEmployeeByNumber(val);
+  return emp ? { name: emp.firstName, empNumber: emp.empNumber } : { name: null, empNumber: null };
+}
+
 function shopRow(e,kind){
   let sub, pillLabel, pillClass;
   if(kind==='missing'){
@@ -1647,14 +1718,32 @@ function openCheckout(truckId){
   checkoutTruckId = truckId;
   selectedCheckoutEquip = new Set();
   document.getElementById('checkoutTitle').textContent = 'Check out Truck ' + truckId;
-  document.getElementById('driverInput').value = '';
-  document.getElementById('passengerInput').value = '';
+  document.getElementById('driverSelect').innerHTML = buildRequiredRosterSelect();
+  document.getElementById('driverOtherInput').style.display = 'none';
+  document.getElementById('driverOtherInput').value = '';
+  document.getElementById('passengerSelect').innerHTML = buildOptionalRosterSelect();
+  document.getElementById('passengerOtherInput').style.display = 'none';
+  document.getElementById('passengerOtherInput').value = '';
   const available = state.equipment.filter(e=>!e.truckId && !e.missing);
   const picker = document.getElementById('checkoutEquipPicker');
   picker.innerHTML = available.length
     ? available.map(e=>equipOptionHtml(e,'checkout')).join('')
     : `<div class="empty-note">No equipment currently available at the shop.</div>`;
   document.getElementById('checkoutOverlay').classList.add('show');
+}
+
+// Keeps the Passenger dropdown from ever offering the same person already
+// picked as Driver -- rebuilt live as the Driver selection changes.
+function refreshPassengerRosterOptions(){
+  const driverVal = document.getElementById('driverSelect').value;
+  const passengerSelect = document.getElementById('passengerSelect');
+  const currentVal = passengerSelect.value;
+  const excludeEmpNumber = driverVal && driverVal !== '__other__' ? driverVal : null;
+  passengerSelect.innerHTML = buildOptionalRosterSelect(excludeEmpNumber);
+  if([...passengerSelect.options].some(o=>o.value===currentVal)){
+    passengerSelect.value = currentVal;
+    handleRosterSelectChange(passengerSelect, 'passengerOtherInput');
+  }
 }
 
 function equipOptionHtml(e, mode){
@@ -1676,17 +1765,21 @@ function toggleEquip(id, mode){
 }
 
 function submitCheckout(){
-  const driver = titleCase(document.getElementById('driverInput').value);
-  const passenger = titleCase(document.getElementById('passengerInput').value);
+  const driverField = readRosterField('driverSelect','driverOtherInput');
+  const passengerField = readRosterField('passengerSelect','passengerOtherInput');
+  const driver = titleCase(driverField.name);
+  const passenger = titleCase(passengerField.name || '');
   if(!driver){
-    showToast('Enter a driver name');
+    showToast('Choose or enter a driver name');
     return;
   }
   const truck = state.trucks.find(t=>t.id===checkoutTruckId);
   const now = new Date().toISOString();
   truck.status = 'out';
   truck.driver = driver;
+  truck.driverEmpNumber = driverField.empNumber;
   truck.passenger = passenger || null;
+  truck.passengerEmpNumber = passenger ? passengerField.empNumber : null;
   truck.checkedOutAt = now;
   truck.lastEod = null;
   const names = [];
@@ -1717,7 +1810,9 @@ let oosTruckId = null;
 function openOutOfService(truckId){
   oosTruckId = truckId;
   document.getElementById('oosTitle').textContent = 'Mark Truck ' + truckId + ' Out of Service';
-  document.getElementById('oosNameInput').value = '';
+  document.getElementById('oosNameSelect').innerHTML = buildRequiredRosterSelect();
+  document.getElementById('oosNameOtherInput').style.display = 'none';
+  document.getElementById('oosNameOtherInput').value = '';
   document.getElementById('oosReasonInput').value = '';
   document.getElementById('oosError').textContent = '';
   document.getElementById('oosOverlay').classList.add('show');
@@ -1726,14 +1821,16 @@ function openOutOfService(truckId){
 function submitOutOfService(){
   const errEl = document.getElementById('oosError');
   errEl.textContent = '';
-  const name = document.getElementById('oosNameInput').value.trim();
-  if(!name){ errEl.textContent = 'Enter your name'; return; }
+  const field = readRosterField('oosNameSelect','oosNameOtherInput');
+  const name = titleCase(field.name);
+  if(!name){ errEl.textContent = 'Choose or enter your name'; return; }
   const reason = document.getElementById('oosReasonInput').value.trim() || null;
 
   const truck = state.trucks.find(t=>t.id===oosTruckId);
   if(!truck) return;
   truck.status = 'out-of-service';
   truck.oosBy = name;
+  truck.oosByEmpNumber = field.empNumber;
   truck.oosReason = reason;
   truck.oosSince = new Date().toISOString();
 
@@ -1761,7 +1858,6 @@ function openAddEquip(truckId){
   addEquipTruckId = truckId;
   selectedAddEquip = new Set();
   document.getElementById('addEquipTitle').textContent = 'Add equipment — Truck ' + truckId;
-  document.getElementById('addedByInput').value = '';
   const available = state.equipment.filter(e=>!e.truckId && !e.missing);
   const picker = document.getElementById('addEquipPicker');
   picker.innerHTML = available.length
@@ -1775,14 +1871,18 @@ function submitAddEquip(){
     closeSheet('addEquipOverlay');
     return;
   }
-  const addedBy = document.getElementById('addedByInput').value.trim() || 'Unknown';
+  const truck = state.trucks.find(t=>t.id===addEquipTruckId);
+  const addedBy = truck ? (crewLabel(truck.driver, truck.passenger) || 'Unknown') : 'Unknown';
+  const driverForItem = truck ? truck.driver : null;
+  const passengerForItem = truck ? truck.passenger : null;
   const now = new Date().toISOString();
   const names = [];
   selectedAddEquip.forEach(id=>{
     const item = state.equipment.find(e=>e.id===id);
     if(item){
       item.truckId = addEquipTruckId;
-      item.lastUser = addedBy;
+      item.lastUser = driverForItem;
+      item.lastUserPassenger = passengerForItem;
       item.lastAction = 'checked out';
       item.lastTs = now;
       names.push(item.name);
@@ -1817,8 +1917,9 @@ function openProblem(truckId){
         <textarea id="problemTextInput" placeholder="e.g. Front driver's headlight is out"></textarea>
       </div>
       <div class="field">
-        <label>Your name (optional)</label>
-        <input type="text" id="problemNameInput" placeholder="e.g. Tom">
+        <label>Your name</label>
+        <select class="login-location-select" id="problemNameSelect" onchange="handleRosterSelectChange(this,'problemNameOtherInput')">${buildRequiredRosterSelect()}</select>
+        <input type="text" id="problemNameOtherInput" placeholder="Type your name" style="display:none;margin-top:8px;">
       </div>
       <div class="sheet-submit">
         <button class="btn btn-primary" onclick="submitProblem()">Report problem</button>
@@ -1830,10 +1931,12 @@ function openProblem(truckId){
 function submitProblem(){
   const text = document.getElementById('problemTextInput').value.trim();
   if(!text){ showToast('Enter a description of the problem'); return; }
-  const name = document.getElementById('problemNameInput').value.trim();
+  const field = readRosterField('problemNameSelect','problemNameOtherInput');
+  const name = titleCase(field.name);
+  if(!name){ showToast('Choose or enter your name'); return; }
   const truck = state.trucks.find(t=>t.id===problemTruckId);
-  truck.problem = {text, reportedBy: name || null, reportedAt: new Date().toISOString()};
-  addLog('🚨', `Truck ${problemTruckId} problem reported${name?' by '+name:''}: ${text}`);
+  truck.problem = {text, reportedBy: name, reportedByEmpNumber: field.empNumber, reportedAt: new Date().toISOString()};
+  addLog('🚨', `Truck ${problemTruckId} problem reported by ${name}: ${text}`);
   closeSheet('problemOverlay');
   saveState();
   render();
@@ -2069,7 +2172,9 @@ async function submitGoogleReview(){
   const entry = {
     id: 'gr-' + now.getTime() + '-' + Math.random().toString(36).slice(2,7),
     driver: truck.driver,
+    driverEmpNumber: truck.driverEmpNumber || null,
     passenger: truck.passenger || null,
+    passengerEmpNumber: truck.passenger ? (truck.passengerEmpNumber || null) : null,
     comment,
     photo: pendingGrPhoto,
     addedAt: now.toISOString(),
@@ -2202,6 +2307,8 @@ function submitCheckIn(){
 
   const driverName = truck.driver;
   const passengerName = truck.passenger;
+  const driverEmpNumber = truck.driverEmpNumber;
+  const passengerEmpNumber = truck.passengerEmpNumber;
   const now = new Date().toISOString();
   const items = equipForTruck(checkInTruckId);
 
@@ -2299,11 +2406,11 @@ function submitCheckIn(){
   if(swapPendingTargetId !== null){
     const targetId = swapPendingTargetId;
     swapPendingTargetId = null;
-    completeSwapCheckout(checkInTruckId, targetId, driverName, passengerName, returnedIds);
+    completeSwapCheckout(checkInTruckId, targetId, driverName, passengerName, returnedIds, driverEmpNumber, passengerEmpNumber);
   }
 }
 
-function completeSwapCheckout(sourceId, targetId, driverName, passengerName, equipmentIds){
+function completeSwapCheckout(sourceId, targetId, driverName, passengerName, equipmentIds, driverEmpNumber, passengerEmpNumber){
   const target = state.trucks.find(t=>t.id===targetId);
   if(!target || target.status!=='available'){
     showToast(`Truck ${targetId} is no longer available — check it out separately for the crew`);
@@ -2312,7 +2419,9 @@ function completeSwapCheckout(sourceId, targetId, driverName, passengerName, equ
   const now = new Date().toISOString();
   target.status = 'out';
   target.driver = driverName;
+  target.driverEmpNumber = driverEmpNumber || null;
   target.passenger = passengerName || null;
+  target.passengerEmpNumber = passengerName ? (passengerEmpNumber || null) : null;
   target.checkedOutAt = now;
   target.lastEod = null;
   const names = [];
@@ -2353,11 +2462,9 @@ let expenseTruckId = null;
 
 function openAddExpense(truckId){
   expenseTruckId = truckId;
-  const truck = state.trucks.find(t=>t.id===truckId);
   document.getElementById('expenseTitle').textContent = 'Add Expense — Truck ' + truckId;
   document.getElementById('expenseAmountInput').value = '';
   document.getElementById('expenseNoteInput').value = '';
-  document.getElementById('expenseLoggedByInput').value = (truck && truck.driver) ? truck.driver : '';
   document.getElementById('expenseError').textContent = '';
   const select = document.getElementById('expenseWhereSelect');
   const locations = state.expenseLocations || [];
@@ -2378,7 +2485,8 @@ async function submitExpense(){
   if(!where){ errEl.textContent = 'Choose where this expense is from'; return; }
   if(!amountRaw || isNaN(amount) || amount <= 0){ errEl.textContent = 'Enter a valid amount'; return; }
 
-  const loggedBy = document.getElementById('expenseLoggedByInput').value.trim() || null;
+  const truck = state.trucks.find(t=>t.id===expenseTruckId);
+  const loggedBy = truck ? crewLabel(truck.driver, truck.passenger) : null;
   const now = new Date();
   const entry = {
     id: 'exp-' + now.getTime() + '-' + Math.random().toString(36).slice(2,7),
@@ -2512,10 +2620,15 @@ function submitSwap(){
   const targetCrew = crewLabel(target.driver, target.passenger) || 'Unknown crew';
 
   const tempDriver = source.driver, tempPassenger = source.passenger;
+  const tempDriverEmp = source.driverEmpNumber, tempPassengerEmp = source.passengerEmpNumber;
   source.driver = target.driver;
+  source.driverEmpNumber = target.driverEmpNumber;
   source.passenger = target.passenger;
+  source.passengerEmpNumber = target.passengerEmpNumber;
   target.driver = tempDriver;
+  target.driverEmpNumber = tempDriverEmp;
   target.passenger = tempPassenger;
+  target.passengerEmpNumber = tempPassengerEmp;
 
   // checkedOutAt and problem intentionally untouched -- tied to the vehicle, not the crew.
   state.equipment.forEach(e=>{
@@ -2714,7 +2827,47 @@ function openSpreadsheetLinks(){
   purposeSelect.innerHTML = `<option value="">None — just a reference link</option>` +
     SPREADSHEET_LINK_PURPOSES.map(p=>`<option value="${p}">${p}</option>`).join('');
   renderSpreadsheetLinks();
+  renderEmployeeRosterStatus();
   document.getElementById('spreadsheetLinksOverlay').classList.add('show');
+}
+
+function renderEmployeeRosterStatus(){
+  const count = (state.employeeRoster||[]).length;
+  const statusEl = document.getElementById('employeeRosterStatus');
+  const btn = document.getElementById('refreshRosterBtn');
+  const hasOpsScorecardLink = (state.spreadsheetLinks||[]).some(l=>l.purpose==='Ops Scorecard');
+  statusEl.textContent = state.employeeRosterSyncedAt
+    ? `${count} employee${count===1?'':'s'} loaded · last refreshed ${dateTimeShort(state.employeeRosterSyncedAt)}`
+    : 'Not synced yet — refresh to load the employee list.';
+  if(btn) btn.disabled = !hasOpsScorecardLink;
+}
+
+async function refreshEmployeeRoster(){
+  if(currentRole !== 'admin'){ showToast('Admins only'); return; }
+  const btn = document.getElementById('refreshRosterBtn');
+  btn.disabled = true;
+  btn.textContent = 'Refreshing…';
+  try{
+    const res = await fetch('/api/sync-employee-roster', {method:'POST', credentials:'same-origin'});
+    const data = await res.json();
+    if(data.ok){
+      state.employeeRoster = data.roster || [];
+      state.employeeRosterSyncedAt = new Date().toISOString();
+      addLog('🔄', `Employee list refreshed — ${data.roster ? data.roster.length : 0} employees`);
+      await saveState();
+      showToast(`Loaded ${data.roster ? data.roster.length : 0} employees`);
+    } else {
+      const messages = {
+        'no-link': 'No Ops Scorecard spreadsheet linked yet.',
+        'no-tables-tab': 'Couldn\'t find a "Tables" tab in that spreadsheet.',
+      };
+      showToast(messages[data.reason] || "Couldn't refresh the employee list — try again shortly.");
+    }
+  }catch(e){
+    showToast("Couldn't reach the server — try again");
+  }
+  btn.textContent = '🔄 Refresh Employee List';
+  renderEmployeeRosterStatus();
 }
 
 function renderSpreadsheetLinks(){
@@ -2760,6 +2913,7 @@ function addSpreadsheetLink(){
   document.getElementById('newSheetLinkPurpose').value = '';
   saveState();
   renderSpreadsheetLinks();
+  renderEmployeeRosterStatus();
   render();
   showToast(`${name} linked`);
 }
@@ -2771,6 +2925,7 @@ function removeSpreadsheetLink(idx){
   addLog('🗑️', `Spreadsheet "${link.name}" unlinked`);
   saveState();
   renderSpreadsheetLinks();
+  renderEmployeeRosterStatus();
   render();
   showToast(`${link.name} unlinked`);
 }
@@ -2789,7 +2944,9 @@ function openEodEdit(truckId){
 
   document.getElementById('checkInTitle').textContent = 'Edit End of Day — Truck ' + truckId;
   document.getElementById('eodEditedByField').style.display = 'block';
-  document.getElementById('eodEditedByInput').value = '';
+  document.getElementById('eodEditedBySelect').innerHTML = buildRequiredRosterSelect();
+  document.getElementById('eodEditedByOtherInput').style.display = 'none';
+  document.getElementById('eodEditedByOtherInput').value = '';
   document.getElementById('missingNotesInput').value = eod.missingNote || '';
 
   const manifest = eod.equipmentManifest || [];
@@ -2847,10 +3004,12 @@ function submitEodEdit(truck){
     }
   }
 
-  const editedBy = document.getElementById('eodEditedByInput').value.trim();
+  const editedByField = readRosterField('eodEditedBySelect','eodEditedByOtherInput');
+  const editedBy = titleCase(editedByField.name || '');
+  if(!editedBy){ showToast('Choose or enter who made this edit'); return; }
   const missingNote = document.getElementById('missingNotesInput').value.trim() || null;
   const now = new Date().toISOString();
-  const crew = editedBy || crewLabel(eod.submittedBy, eod.passenger);
+  const crew = editedBy;
 
   const returnedNames = [];
   const missingNames = [];
@@ -2914,11 +3073,12 @@ function submitEodEdit(truck){
     equipmentManifest: newManifest,
     missingItems: newManifest.filter(m=>m.status==='missing').map(m=>m.name),
     missingNote: missingNote,
-    lastEditedBy: editedBy || 'Unknown',
+    lastEditedBy: editedBy,
+    lastEditedByEmpNumber: editedByField.empNumber,
     lastEditedAt: now
   };
 
-  let logMsg = `Truck ${checkInTruckId} end-of-day edited${editedBy?' by '+editedBy:''} — ${selectedFullness} full`;
+  let logMsg = `Truck ${checkInTruckId} end-of-day edited by ${editedBy} — ${selectedFullness} full`;
   if(missingNames.length) logMsg += ` — missing ${missingNames.join(', ')}`;
   if(issueNames.length) logMsg += ` — issue: ${issueNames.join('; ')}`;
   if(changedButSkipped.length) logMsg += ` (couldn't update ${changedButSkipped.join(', ')} — already back in use)`;
@@ -2994,7 +3154,7 @@ function addTruck(){
   const num = parseInt(input.value, 10);
   if(!num || num<=0){ showToast('Enter a valid truck number'); return; }
   if(state.trucks.some(t=>t.id===num)){ showToast(`Truck ${num} already exists`); return; }
-  state.trucks.push({id:num, status:'available', driver:null, passenger:null, checkedOutAt:null, problem:null, lastEod:null, oosBy:null, oosReason:null, oosSince:null});
+  state.trucks.push({id:num, status:'available', driver:null, driverEmpNumber:null, passenger:null, passengerEmpNumber:null, checkedOutAt:null, problem:null, lastEod:null, oosBy:null, oosByEmpNumber:null, oosReason:null, oosSince:null});
   addLog('🛠️', `Truck ${num} added to the fleet`);
   input.value = '';
   saveState();
@@ -3104,10 +3264,6 @@ function openEquipIssueView(itemId){
         <label>What's wrong?</label>
         <textarea id="equipIssueTextInput" placeholder="e.g. No blades left for this saw"></textarea>
       </div>
-      <div class="field">
-        <label>Your name (optional)</label>
-        <input type="text" id="equipIssueNameInput" placeholder="e.g. Tom">
-      </div>
       <div class="sheet-submit">
         <button class="btn btn-primary" onclick="submitEquipIssue('${itemId}')">Report Issue</button>
       </div>`;
@@ -3120,9 +3276,8 @@ function submitEquipIssue(itemId){
   if(!item) return;
   const text = document.getElementById('equipIssueTextInput').value.trim();
   if(!text){ showToast('Describe the issue'); return; }
-  const name = document.getElementById('equipIssueNameInput').value.trim();
-  item.issue = {text, reportedBy: name || null, reportedAt: new Date().toISOString()};
-  addLog('⚠️', `${item.name} issue reported${name?' by '+name:''}: ${text}`);
+  item.issue = {text, reportedBy: null, reportedAt: new Date().toISOString()};
+  addLog('⚠️', `${item.name} issue reported: ${text}`);
   closeSheet('equipIssueOverlay');
   saveState();
   renderManage();
