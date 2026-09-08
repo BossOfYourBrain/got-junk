@@ -121,10 +121,16 @@ async function syncJunkRouteMetrics(sheets, stateData, todayStr) {
   }
 
   if (writes.length > 0) {
-    await sheets.spreadsheets.values.batchUpdate({
-      spreadsheetId,
-      requestBody: { valueInputOption: 'USER_ENTERED', data: writes },
-    });
+    try {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId,
+        requestBody: { valueInputOption: 'USER_ENTERED', data: writes },
+      });
+    } catch (err) {
+      const attemptedRanges = writes.map(w => w.range).join(', ');
+      const baseMsg = String(err && err.message || err);
+      throw new Error(`${baseMsg} | Attempted ranges: ${attemptedRanges}`);
+    }
   }
 
   return { synced: true, peopleUpdated: personTotals.size };
