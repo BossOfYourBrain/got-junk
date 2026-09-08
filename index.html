@@ -380,13 +380,6 @@
   .expense-item-sub{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
 
   /* Google Review photo picker + history */
-  .gr-paste-zone{
-    margin-top:8px;padding:14px;border:1.5px dashed var(--line);border-radius:10px;
-    min-height:20px;font-size:13px;color:var(--ink-soft);text-align:center;outline:none;
-  }
-  .gr-paste-zone:empty::before{
-    content: attr(data-placeholder);
-  }
   .gr-history-item{
     display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);
   }
@@ -398,9 +391,9 @@
   .gr-history-time{font-size:11px;color:var(--ink-soft);margin-top:2px;}
   .gr-tally-row{
     display:flex;justify-content:space-between;align-items:center;padding:8px 0;
-    border-bottom:1px solid var(--line);font-size:13.5px;font-weight:600;
+    border-bottom:1px solid var(--line);font-size:13.5px;font-weight:600;margin-top:14px;
   }
-  .gr-tally-row:last-child{border-bottom:none;}
+  .gr-tally-row:first-child{margin-top:0;}
   .gr-tally-count{
     background:var(--green-soft);color:var(--green);font-weight:800;font-size:12px;
     padding:2px 9px;border-radius:99px;
@@ -809,7 +802,6 @@
       <label>Photo (required)</label>
       <button type="button" class="btn btn-outline" style="width:100%;" onclick="document.getElementById('grPhotoInput').click()">📷 Choose Photo</button>
       <input type="file" id="grPhotoInput" accept="image/*" style="display:none" onchange="handleGrFileSelect(event)">
-      <div class="gr-paste-zone" id="grPasteZone" contenteditable="true" data-placeholder="Or long-press here and choose Paste"></div>
       <img class="photo-preview" id="grPhotoPreview" style="display:none;">
     </div>
     <div class="field">
@@ -2116,7 +2108,6 @@ function openAddGoogleReview(truckId){
   document.getElementById('grCommentInput').value = '';
   document.getElementById('grError').textContent = '';
   document.getElementById('grPhotoPreview').style.display = 'none';
-  document.getElementById('grPasteZone').setAttribute('data-placeholder', 'Or long-press here and choose Paste');
   document.getElementById('grPhotoInput').value = '';
   document.getElementById('grOverlay').classList.add('show');
 }
@@ -2139,35 +2130,6 @@ function handleGrFileSelect(event){
     updateGrPhotoPreview();
   });
 }
-
-function handleGrPaste(event){
-  const items = (event.clipboardData || window.clipboardData) ? (event.clipboardData || window.clipboardData).items : null;
-  event.preventDefault();
-  let found = false;
-  if(items){
-    for(const item of items){
-      if(item.type && item.type.indexOf('image/')===0){
-        found = true;
-        const blob = item.getAsFile();
-        resizeImageBlob(blob, (dataUrl)=>{
-          pendingGrPhoto = dataUrl;
-          updateGrPhotoPreview();
-          document.getElementById('grPasteZone').setAttribute('data-placeholder', '✓ Image pasted');
-        });
-        break;
-      }
-    }
-  }
-  if(!found){
-    showToast('No image found on your clipboard — copy the screenshot first');
-  }
-}
-
-// The paste zone is deliberately kept empty forever (a CSS :empty::before
-// shows the placeholder text via its data-placeholder attribute) -- so any
-// attempt to actually type into it, not just paste an image, is blocked.
-document.getElementById('grPasteZone').addEventListener('paste', handleGrPaste);
-document.getElementById('grPasteZone').addEventListener('beforeinput', function(e){ e.preventDefault(); });
 
 async function submitGoogleReview(){
   const errEl = document.getElementById('grError');
@@ -2229,26 +2191,32 @@ function renderGrHistoryBody(){
     return;
   }
 
-  // Individual tally: the banner/count above stays "total uploads" (a
-  // shared review counts once) -- this breaks that same set of records
-  // down by person instead, since a shared review credits everyone on it.
+  // Group by individual: the banner/count above stays "total uploads" (a
+  // shared review counts once) -- this groups that same set of records by
+  // person instead, since a shared review credits everyone on it, and a
+  // shared upload's card appears under each person it's credited to.
   // Pure display computation; grLog itself never changes shape for this.
-  const tally = new Map();
+  const byPerson = new Map();
   entries.forEach(g=>{
-    if(g.driver) tally.set(g.driver, (tally.get(g.driver)||0)+1);
-    if(g.passenger) tally.set(g.passenger, (tally.get(g.passenger)||0)+1);
+    if(g.driver){
+      if(!byPerson.has(g.driver)) byPerson.set(g.driver, {count:0, entries:[]});
+      const p = byPerson.get(g.driver);
+      p.count += 1;
+      p.entries.push(g);
+    }
+    if(g.passenger){
+      if(!byPerson.has(g.passenger)) byPerson.set(g.passenger, {count:0, entries:[]});
+      const p = byPerson.get(g.passenger);
+      p.count += 1;
+      p.entries.push(g);
+    }
   });
-  const tallyRows = [...tally.entries()].sort((a,b)=> b[1]-a[1] || a[0].localeCompare(b[0]));
+  const sortedPeople = [...byPerson.entries()].sort((a,b)=> b[1].count-a[1].count || a[0].localeCompare(b[0]));
 
-  let html = `<div class="section-label">Individual counts — today</div>`;
-  html += tallyRows.map(([name,count])=>
-    `<div class="gr-tally-row"><span class="gr-tally-name">${escapeHtml(name)}</span><span class="gr-tally-count">${count}</span></div>`
-  ).join('');
-
-  html += `<div class="section-label" style="margin-top:16px;">Uploads — today</div>`;
-  html += entries.map(g=>grHistoryItemHtml(g, true, true)).join('');
-
-  body.innerHTML = html;
+  body.innerHTML = sortedPeople.map(([name, info])=>`
+    <div class="gr-tally-row"><span class="gr-tally-name">${escapeHtml(name)}</span><span class="gr-tally-count">${info.count}</span></div>
+    ${info.entries.map(g=>grHistoryItemHtml(g, true, true)).join('')}
+  `).join('');
 }
 
 /* Clicking a truck's GR badge shows reviews credited to its current crew --
@@ -2556,10 +2524,23 @@ async function manualPushToSheet(){
   try{
     const res = await fetch('/api/sync-dump-total', {method:'POST', credentials:'same-origin'});
     const data = await res.json();
+    console.log('Sync result:', data);
     if(data.ok){
       let msg = `Pushed ${formatMoney(data.dumpTotal)} and ${data.grCount} review(s) to the Ops Scorecard`;
-      if(data.junkRoute && data.junkRoute.synced && data.junkRoute.peopleUpdated > 0){
-        msg += ` · ${data.junkRoute.peopleUpdated} individual GR total(s) updated on the Junk Route sheet`;
+      const jr = data.junkRoute;
+      if(jr){
+        if(jr.synced && jr.peopleUpdated > 0){
+          msg += ` · ${jr.peopleUpdated} individual total(s) updated on the Junk Route sheet`;
+        } else if(jr.synced && jr.peopleUpdated === 0){
+          msg += ` · Junk Route: no roster-linked reviews today to push`;
+        } else {
+          const jrMessages = {
+            'no-link': 'Junk Route: no spreadsheet linked yet',
+            'no-tab': 'Junk Route: no "Non-Route Metrics" tab found',
+            'sheets-error': "Junk Route: couldn't reach that sheet",
+          };
+          msg += ` · ${jrMessages[jr.reason] || 'Junk Route: sync skipped'}`;
+        }
       }
       showToast(msg);
     } else {
