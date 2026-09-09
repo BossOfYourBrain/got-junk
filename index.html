@@ -2240,28 +2240,19 @@ function renderCrewGrHistoryBody(){
   const body = document.getElementById('crewGrHistoryBody');
   if(!truck){ body.innerHTML = ''; return; }
   const names = [truck.driver, truck.passenger].filter(Boolean);
-  const matches = (state.grLog||[]).filter(g=>
-    names.includes(g.driver) || (g.passenger && names.includes(g.passenger))
-  );
-
   const today = localDateStr();
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-3);
-  const cutoffStr = localDateStr(cutoff);
+  // Today only -- a truck's crew pairing can change day to day (checkout,
+  // swap), so showing prior days here would mix in reviews from whoever
+  // happened to be on this truck on a different day, not this same team.
+  const todays = (state.grLog||[])
+    .filter(g => g.date===today && (names.includes(g.driver) || (g.passenger && names.includes(g.passenger))))
+    .sort((a,b)=> new Date(b.addedAt)-new Date(a.addedAt));
 
-  const todays = matches.filter(g=>g.date===today).sort((a,b)=> new Date(b.addedAt)-new Date(a.addedAt));
-  const priorDays = matches.filter(g=>g.date!==today && g.date>=cutoffStr).sort((a,b)=> new Date(b.addedAt)-new Date(a.addedAt));
-
-  let html = `<div class="section-label">Today — ${todays.length}</div>`;
-  html += todays.length
+  const body_html = todays.length
     ? todays.map(g=>grHistoryItemHtml(g, true, true)).join('')
     : `<div class="empty-note">No reviews yet today.</div>`;
 
-  html += `<div class="section-label">Last 3 days — ${priorDays.length}</div>`;
-  html += priorDays.length
-    ? priorDays.map(g=>grHistoryItemHtml(g, false, false)).join('')
-    : `<div class="empty-note">No reviews in the last 3 days.</div>`;
-
-  body.innerHTML = html;
+  body.innerHTML = body_html;
 }
 
 // Mirrors the Expense removal pattern: only today's entries, anyone signed
