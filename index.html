@@ -386,10 +386,12 @@
     display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);
   }
   .gr-history-item:last-child{border-bottom:none;}
-  .gr-history-thumb{width:52px;height:52px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#EEF2F8;}
+  .gr-history-thumb{width:52px;height:52px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#EEF2F8;cursor:pointer;}
   .gr-history-main{flex:1;min-width:0;}
+  .gr-history-name{font-weight:700;font-size:13.5px;}
+  .gr-history-with{font-size:11.5px;color:var(--ink-soft);margin-top:1px;}
   .gr-history-crew{font-weight:700;font-size:13.5px;}
-  .gr-history-comment{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .gr-history-comment{font-size:12px;color:var(--ink-soft);margin-top:2px;font-style:italic;}
   .gr-history-time{font-size:11px;color:var(--ink-soft);margin-top:2px;}
   .gr-tally-row{
     display:flex;justify-content:space-between;align-items:center;padding:8px 0;
@@ -2171,15 +2173,31 @@ function openGrHistory(){
   document.getElementById('grHistoryOverlay').classList.add('show');
 }
 
-function grHistoryItemHtml(g, showPhoto, showRemove){
-  return `
-    <div class="gr-history-item">
-      ${showPhoto && g.photo ? `<img class="gr-history-thumb" src="${g.photo}">` : ''}
-      <div class="gr-history-main">
+// forPerson: when set, renders the "bold name / — with X / quoted comment"
+// layout for that specific person's group (Ops tab, grouped-by-individual
+// view). When omitted, keeps the original combined crew-label layout (used
+// by the truck-level popup, which isn't grouped by person).
+function grHistoryItemHtml(g, showPhoto, showRemove, forPerson){
+  const photoHtml = showPhoto && g.photo
+    ? `<img class="gr-history-thumb" src="${g.photo}" onclick="openGrLightbox('${g.id}')">` : '';
+  let mainHtml;
+  if(forPerson){
+    const other = forPerson===g.driver ? g.passenger : (forPerson===g.passenger ? g.driver : null);
+    mainHtml = `
+        <div class="gr-history-name">${escapeHtml(forPerson)}</div>
+        ${other ? `<div class="gr-history-with">— with ${escapeHtml(other)}</div>` : ''}
+        ${g.comment?`<div class="gr-history-comment">"${escapeHtml(g.comment)}"</div>`:''}
+        <div class="gr-history-time">${dateTimeShort(g.addedAt)}</div>`;
+  } else {
+    mainHtml = `
         <div class="gr-history-crew">${escapeHtml(crewLabel(g.driver,g.passenger)||'Unknown')}</div>
         ${g.comment?`<div class="gr-history-comment">${escapeHtml(g.comment)}</div>`:''}
-        <div class="gr-history-time">${dateTimeShort(g.addedAt)}</div>
-      </div>
+        <div class="gr-history-time">${dateTimeShort(g.addedAt)}</div>`;
+  }
+  return `
+    <div class="gr-history-item">
+      ${photoHtml}
+      <div class="gr-history-main">${mainHtml}</div>
       ${showRemove ? `<button class="expense-remove-btn" onclick="removeGrEntry('${g.id}')" title="Remove">✕</button>` : ''}
     </div>`;
 }
@@ -2217,7 +2235,7 @@ function renderGrHistoryBody(){
 
   body.innerHTML = sortedPeople.map(([name, info])=>`
     <div class="gr-tally-row"><span class="gr-tally-name">${escapeHtml(name)}</span><span class="gr-tally-count">${info.count}</span></div>
-    ${info.entries.map(g=>grHistoryItemHtml(g, true, true)).join('')}
+    ${info.entries.map(g=>grHistoryItemHtml(g, true, true, name)).join('')}
   `).join('');
 }
 
@@ -3109,6 +3127,17 @@ function openLightbox(truckId){
   document.getElementById('lightboxImg').src = truck.lastEod.photo;
   document.getElementById('lightboxCaption').textContent =
     `Truck ${truckId} — ${truck.lastEod.fullness} full · ${truck.lastEod.submittedBy||'Unknown'} · ${dateTimeShort(truck.lastEod.submittedAt)}`;
+  document.getElementById('photoLightbox').classList.add('show');
+}
+
+// Reuses the same lightbox overlay as EOD photos -- one full-size viewer,
+// two different callers.
+function openGrLightbox(grId){
+  const g = (state.grLog||[]).find(e=>e.id===grId);
+  if(!g || !g.photo) return;
+  document.getElementById('lightboxImg').src = g.photo;
+  document.getElementById('lightboxCaption').textContent =
+    `${crewLabel(g.driver, g.passenger) || 'Unknown'} · ${dateTimeShort(g.addedAt)}`;
   document.getElementById('photoLightbox').classList.add('show');
 }
 
