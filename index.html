@@ -117,7 +117,6 @@
     background:#EEF2F8;color:var(--blue-deep);font-size:12px;font-weight:600;
     padding:5px 10px;border-radius:8px;border:1px solid var(--line);
   }
-  .chip.tag-bag{background:var(--blue);color:#fff;border-color:var(--blue);}
   .no-equip{font-size:13px;color:var(--ink-soft);font-style:italic;margin:2px 0 12px;}
   .btn-row{display:flex;gap:8px;}
   .btn{
@@ -771,7 +770,7 @@
       <input type="file" id="eodPhotoInput" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoSelect(event)">
     </div>
     <div class="sheet-submit">
-      <button class="btn btn-primary" onclick="submitCheckIn()">Complete check-in</button>
+      <button class="btn btn-primary" id="checkInSubmitBtn" onclick="submitCheckIn()">Complete check-in</button>
     </div>
   </div>
 </div>
@@ -814,7 +813,7 @@
     </div>
     <div class="login-error" id="grError"></div>
     <div class="sheet-submit">
-      <button class="btn btn-primary" onclick="submitGoogleReview()">Add Review</button>
+      <button class="btn btn-primary" id="grSubmitBtn" onclick="submitGoogleReview()">Add Review</button>
     </div>
   </div>
 </div>
@@ -992,6 +991,7 @@ let checkInTruckId = null;
 let selectedFullness = null;
 let selectedChecklist = new Set();
 let pendingEodPhoto = null;
+let pendingEodPhotoUploadPromise = null;
 let selectedEquipStatus = new Map();
 let eodEditMode = false;
 let currentLocationId = null;
@@ -1351,7 +1351,7 @@ function problemBlock(t){
 function truckCardOut(t){
   const items = equipForTruck(t.id);
   const chips = items.length
-    ? `<div class="equip-chips">${items.map(i=>`<span class="chip ${i.category==='bag'?'tag-bag':''}">${i.icon} ${i.name}</span>`).join('')}</div>`
+    ? `<div class="equip-chips">${items.map(i=>`<span class="chip">${i.icon} ${i.name}</span>`).join('')}</div>`
     : `<div class="no-equip">No equipment checked out yet</div>`;
   const crew = t.passenger ? `${t.driver} + ${t.passenger}` : t.driver;
   const grCount = crewGrCountToday(t);
@@ -1988,6 +1988,7 @@ function openCheckIn(truckId){
   selectedFullness = null;
   selectedChecklist = new Set();
   pendingEodPhoto = null;
+  pendingEodPhotoUploadPromise = null;
   selectedEquipStatus = new Map();
   document.getElementById('checkInTitle').textContent = swapPendingTargetId
     ? `Check In Truck ${truckId} (Swap → Truck ${swapPendingTargetId})`
@@ -2053,19 +2054,41 @@ function toggleChecklistItem(cat){
 // Google Review's picker and paste handlers). The existing EOD photo
 // handler below has its own inline copy of this same logic -- left as-is
 // rather than refactored, since it's working code with no reason to touch it.
+// Uploads a compressed photo to Vercel Blob storage and returns its URL, or
+// null if the upload failed (falling back to keeping the local data URL is
+// handled by the caller, not here). Kicked off immediately after a photo is
+// resized/previewed, not at final submit -- so by the time someone actually
+// taps Submit, the upload has usually already finished in the background
+// while they were still filling in the rest of the form.
+async function uploadPhotoToBlob(dataUrl){
+  try{
+    const res = await fetch('/api/upload-photo', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({dataUrl})
+    });
+    const data = await res.json();
+    return data.ok ? data.url : null;
+  }catch(e){
+    console.error('Photo upload failed', e);
+    return null;
+  }
+}
+
 function resizeImageBlob(blob, callback){
   const reader = new FileReader();
   reader.onload = (e)=>{
     const img = new Image();
     img.onload = ()=>{
-      const maxW = 800;
+      const maxW = 640;
       const scale = Math.min(1, maxW/img.width);
       const canvas = document.createElement('canvas');
       canvas.width = img.width*scale;
       canvas.height = img.height*scale;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      callback(canvas.toDataURL('image/jpeg',0.7));
+      callback(canvas.toDataURL('image/jpeg',0.6));
     };
     img.src = e.target.result;
   };
@@ -2080,18 +2103,25 @@ function handlePhotoSelect(event){
   reader.onload = (e)=>{
     const img = new Image();
     img.onload = ()=>{
-      const maxW = 800;
+      const maxW = 640;
       const scale = Math.min(1, maxW/img.width);
       const canvas = document.createElement('canvas');
       canvas.width = img.width*scale;
       canvas.height = img.height*scale;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      pendingEodPhoto = canvas.toDataURL('image/jpeg',0.7);
+      pendingEodPhoto = canvas.toDataURL('image/jpeg',0.6);
       const preview = document.getElementById('photoPreview');
       preview.src = pendingEodPhoto;
       preview.style.display = 'block';
       document.getElementById('photoHint').style.display = 'none';
+      // Upload starts now, in the background, while the person is likely
+      // still working through the checklist -- usually done well before
+      // they actually tap Submit.
+      pendingEodPhotoUploadPromise = uploadPhotoToBlob(pendingEodPhoto).then(url=>{
+        if(url) pendingEodPhoto = url;
+        return url;
+      });
     };
     img.src = e.target.result;
   };
@@ -2107,6 +2137,7 @@ function openAddGoogleReview(truckId){
   if(!truck) return;
   grTruckId = truckId;
   pendingGrPhoto = null;
+  pendingGrPhotoUploadPromise = null;
   document.getElementById('grTitle').textContent = 'Add Google Review — Truck ' + truckId;
   document.getElementById('grCreditLine').textContent = `Crediting: ${crewLabel(truck.driver, truck.passenger) || 'Unknown crew'}`;
   document.getElementById('grCommentInput').value = '';
@@ -2130,8 +2161,15 @@ function handleGrFileSelect(event){
   const file = event.target.files[0];
   if(!file) return;
   resizeImageBlob(file, (dataUrl)=>{
-    pendingGrPhoto = dataUrl;
+    pendingGrPhoto = dataUrl; // instant local preview
     updateGrPhotoPreview();
+    // Upload starts now, in the background, while the person is likely
+    // still typing a comment -- by the time they hit Submit this is
+    // usually already done.
+    pendingGrPhotoUploadPromise = uploadPhotoToBlob(dataUrl).then(url=>{
+      if(url) pendingGrPhoto = url;
+      return url;
+    });
   });
 }
 
@@ -2141,6 +2179,18 @@ async function submitGoogleReview(){
   if(!pendingGrPhoto){ errEl.textContent = 'Add a photo of the review'; return; }
   const truck = state.trucks.find(t=>t.id===grTruckId);
   if(!truck){ errEl.textContent = 'Something changed — try again'; return; }
+
+  const btn = document.getElementById('grSubmitBtn');
+
+  // If the background upload from photo-select hasn't finished yet, wait
+  // for it now -- usually near-instant, since most of the upload time
+  // already passed while the person was filling in the rest of the form.
+  if(pendingGrPhotoUploadPromise){
+    btn.disabled = true;
+    btn.textContent = 'Uploading photo…';
+    await pendingGrPhotoUploadPromise;
+    pendingGrPhotoUploadPromise = null;
+  }
 
   const comment = document.getElementById('grCommentInput').value.trim() || null;
   const now = new Date();
@@ -2159,8 +2209,17 @@ async function submitGoogleReview(){
   state.grLog.push(entry);
   pruneOldGrPhotos();
   addLog('⭐', `Google Review added — credited to ${crewLabel(entry.driver, entry.passenger)||'Unknown'}${comment?' ("'+comment+'")':''}`);
-  closeSheet('grOverlay');
+
+  // Keep the sheet open with visible feedback until the save actually
+  // finishes -- closing immediately (as before) made a multi-second photo
+  // upload look like nothing was happening.
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
   await saveState();
+  btn.disabled = false;
+  btn.textContent = 'Add Review';
+
+  closeSheet('grOverlay');
   render();
   syncDumpTotal();
   showToast('Google Review added');
@@ -2302,14 +2361,28 @@ function toggleMoreActions(truckId){
   render();
 }
 
-function submitCheckIn(){
+async function submitCheckIn(){
   if(!selectedFullness){ showToast('Select how full the truck is'); return; }
   if(!pendingEodPhoto){ showToast('A photo of the junk is required'); return; }
+
+  // If the background upload from photo-select hasn't finished yet, wait
+  // for it now -- usually near-instant, since most of the upload time
+  // already passed while the person was working through the checklist.
+  if(pendingEodPhotoUploadPromise){
+    const btn = document.getElementById('checkInSubmitBtn');
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Uploading photo…';
+    await pendingEodPhotoUploadPromise;
+    pendingEodPhotoUploadPromise = null;
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 
   const truck = state.trucks.find(t=>t.id===checkInTruckId);
 
   if(eodEditMode){
-    submitEodEdit(truck);
+    await submitEodEdit(truck);
     return;
   }
 
@@ -2399,8 +2472,18 @@ function submitCheckIn(){
   if(issues.length) logMsg += ` — issue: ${issues.join('; ')}`;
   addLog((missing.length || issues.length) ? '⚠️' : '✅', logMsg);
 
+  // Keep the sheet open with visible feedback until the save actually
+  // finishes -- closing immediately (as before) made a multi-second photo
+  // upload look like nothing was happening. Also now correctly awaited,
+  // where it was previously fire-and-forget.
+  const btn = document.getElementById('checkInSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  await saveState();
+  btn.disabled = false;
+  btn.textContent = 'Complete check-in';
+
   closeSheet('checkInOverlay');
-  saveState();
   render();
   let toastMsg = `Truck ${checkInTruckId} checked in — thanks${driverName?', '+driverName:''}!`;
   if(missing.length && issues.length) toastMsg = `Truck ${checkInTruckId} checked in — ${missing.length} missing, ${issues.length} with an issue`;
@@ -2576,6 +2659,7 @@ async function manualPushToSheet(){
 let swapSourceTruckId = null;
 let grTruckId = null;
 let pendingGrPhoto = null;
+let pendingGrPhotoUploadPromise = null;
 let expandedMoreActions = new Set();
 let swapPendingTargetId = null;
 
@@ -2965,6 +3049,7 @@ function openEodEdit(truckId){
   selectedFullness = eod.fullness;
   selectedChecklist = new Set(eod.checklist || []);
   pendingEodPhoto = eod.photo || null;
+  pendingEodPhotoUploadPromise = null;
   selectedEquipStatus = new Map();
 
   document.getElementById('checkInTitle').textContent = 'Edit End of Day — Truck ' + truckId;
@@ -3010,7 +3095,7 @@ function openEodEdit(truckId){
   document.getElementById('checkInOverlay').classList.add('show');
 }
 
-function submitEodEdit(truck){
+async function submitEodEdit(truck){
   const eod = truck.lastEod;
   const manifest = eod.equipmentManifest || [];
 
@@ -3109,9 +3194,15 @@ function submitEodEdit(truck){
   if(changedButSkipped.length) logMsg += ` (couldn't update ${changedButSkipped.join(', ')} — already back in use)`;
   addLog((missingNames.length || issueNames.length) ? '⚠️' : '✏️', logMsg);
 
+  const btn = document.getElementById('checkInSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  await saveState();
+  btn.disabled = false;
+  btn.textContent = 'Complete check-in';
+
   closeSheet('checkInOverlay');
   eodEditMode = false;
-  saveState();
   render();
   showToast(`Truck ${checkInTruckId} end-of-day updated`);
 }
