@@ -29,74 +29,75 @@
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;}
-  .wrap{max-width:640px;margin:0 auto;padding-bottom:100px;}
+  .wrap{max-width:640px;margin:0 auto;padding-bottom:60px;}
 
+  /* Compact header: scrolls away with the page (only the tab bar stays
+     pinned), so nearly the whole screen is content on mobile. */
   header{
     background:linear-gradient(180deg,var(--blue-deep),var(--blue) 120%);
-    padding:18px 18px 20px;
+    padding:10px 12px 10px;
     color:#fff;
-    position:sticky;top:0;z-index:20;
-    box-shadow:0 4px 16px rgba(10,46,92,.18);
+    box-shadow:0 2px 8px rgba(10,46,92,.14);
   }
-  .brand-row{display:flex;align-items:center;gap:10px;}
+  .brand-row{display:flex;align-items:center;gap:8px;}
   .brand-mark{
-    width:38px;height:38px;border-radius:9px;background:#fff;
+    width:30px;height:30px;border-radius:8px;background:#fff;
     display:flex;align-items:center;justify-content:center;
-    font-family:'Archivo Black',sans-serif;color:var(--blue);font-size:17px;flex-shrink:0;
+    font-family:'Archivo Black',sans-serif;color:var(--blue);font-size:13px;flex-shrink:0;
   }
   .brand-text{line-height:1.15;flex:1;min-width:0;}
-  .brand-text .top{font-size:10px;letter-spacing:.14em;font-weight:700;opacity:.75;text-transform:uppercase;}
-  .brand-text .main{font-family:'Archivo Black',sans-serif;font-size:19px;letter-spacing:.01em;}
-  .settings-btn{
-    width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.14);
-    border:none;color:#fff;font-size:16px;cursor:pointer;flex-shrink:0;
-  }
-  .header-menu-wrap{position:relative;flex-shrink:0;}
-  .header-menu{
-    position:absolute;top:44px;right:0;background:#fff;border-radius:12px;
-    box-shadow:0 10px 28px rgba(10,46,92,.22);border:1px solid var(--line);
-    min-width:190px;padding:6px;display:none;z-index:30;
-  }
-  .header-menu.show{display:block;}
-  .header-menu-item{
-    display:flex;align-items:center;gap:9px;width:100%;padding:11px 12px;border:none;background:none;
-    border-radius:8px;font-size:13.5px;font-weight:700;color:var(--ink);cursor:pointer;text-align:left;
-    font-family:'Inter',sans-serif;
-  }
-  .header-menu-item:active{background:#F0F2F6;}
-  .stat-strip{display:flex;gap:6px;margin-top:14px;}
-  .stat{flex:1;background:rgba(255,255,255,.12);border-radius:12px;padding:8px 6px;text-align:center;}
-  .stat .n{font-family:'Archivo Black',sans-serif;font-size:18px;line-height:1;}
-  .stat .l{font-size:9.5px;opacity:.85;margin-top:3px;font-weight:600;letter-spacing:.01em;}
+  .brand-text .main{font-family:'Archivo Black',sans-serif;font-size:14px;letter-spacing:.01em;}
+  .stat-strip{display:flex;gap:5px;margin-top:8px;}
+  .stat{flex:1;min-width:0;background:rgba(255,255,255,.12);border-radius:10px;padding:5px 3px;text-align:center;}
+  .stat .n{font-family:'Archivo Black',sans-serif;font-size:14px;line-height:1;}
+  .stat .l{font-size:9px;opacity:.85;margin-top:2px;font-weight:600;letter-spacing:.01em;line-height:1.15;}
 
-  .tabs{display:flex;gap:6px;padding:12px 14px 0;position:sticky;top:96px;z-index:19;background:var(--bg);}
+  .tabs{
+    display:flex;gap:4px;padding:6px 10px;position:sticky;top:0;z-index:25;
+    background:var(--bg);box-shadow:0 1px 0 var(--line);
+  }
   .tab-btn{
-    flex:1;padding:10px 6px;border-radius:11px;border:none;background:transparent;
+    flex:1;padding:8px 2px;border-radius:10px;border:none;background:transparent;
     font-family:'Inter',sans-serif;font-weight:700;font-size:13px;color:var(--ink-soft);
     cursor:pointer;transition:.15s;
   }
   .tab-btn.active{background:var(--card);color:var(--blue);box-shadow:0 2px 8px rgba(10,46,92,.1);}
+  .more-wrap{flex:1;position:relative;}
+  .more-wrap .tab-btn{width:100%;}
+  .more-menu{
+    position:absolute;top:calc(100% + 4px);right:0;background:#fff;border-radius:12px;
+    box-shadow:0 10px 28px rgba(10,46,92,.22);border:1px solid var(--line);
+    min-width:200px;padding:6px;display:none;z-index:30;
+  }
+  .more-menu.show{display:block;}
+  .more-menu-item{
+    display:flex;align-items:center;gap:9px;width:100%;padding:11px 12px;border:none;background:none;
+    border-radius:8px;font-size:13.5px;font-weight:700;color:var(--ink);cursor:pointer;text-align:left;
+    font-family:'Inter',sans-serif;
+  }
+  .more-menu-item:active{background:#F0F2F6;}
+  .menu-divider{height:1px;background:var(--line);margin:4px 6px;}
 
-  main{padding:14px;}
-  .section-label{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);margin:18px 4px 8px;}
+  main{padding:8px 10px 12px;}
+  .section-label{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);margin:12px 4px 6px;}
   .section-label:first-child{margin-top:2px;}
 
   .truck-card{
-    background:var(--card);border-radius:var(--radius);margin-bottom:12px;
+    background:var(--card);border-radius:var(--radius);margin-bottom:8px;
     box-shadow:0 1px 3px rgba(19,32,56,.06);border:1px solid var(--line);overflow:hidden;
   }
-  .truck-top{display:flex;align-items:center;gap:12px;padding:14px 14px 12px;}
+  .truck-top{display:flex;align-items:center;gap:10px;padding:10px 12px 8px;}
   .truck-badge{
-    width:52px;height:52px;border-radius:12px;flex-shrink:0;
+    width:40px;height:40px;border-radius:10px;flex-shrink:0;
     display:flex;align-items:center;justify-content:center;
-    font-family:'Archivo Black',sans-serif;font-size:20px;color:#fff;
+    font-family:'Archivo Black',sans-serif;font-size:16px;color:#fff;
     background:var(--blue-deep);
   }
   .truck-badge.avail{background:var(--green);}
   .truck-badge.oos{background:var(--amber);}
   .truck-meta{flex:1;min-width:0;}
-  .truck-meta .label{font-size:11px;color:var(--ink-soft);font-weight:700;text-transform:uppercase;letter-spacing:.06em;}
-  .truck-meta .crew{font-size:15px;font-weight:700;margin-top:2px;}
+  .truck-meta .label{font-size:10px;color:var(--ink-soft);font-weight:700;text-transform:uppercase;letter-spacing:.06em;}
+  .truck-meta .crew{font-size:14px;font-weight:700;margin-top:1px;}
   .truck-meta .crew.empty{color:var(--ink-soft);font-weight:500;}
   .pill{
     padding:4px 10px;border-radius:99px;font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;
@@ -111,16 +112,16 @@
   .pill.avail{background:var(--green-soft);color:var(--green);}
   .pill.oos{background:var(--amber-soft);color:var(--amber);}
 
-  .truck-body{padding:0 14px 14px;}
-  .equip-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px;}
+  .truck-body{padding:0 12px 10px;}
+  .equip-chips{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 8px;}
   .chip{
-    background:#EEF2F8;color:var(--blue-deep);font-size:12px;font-weight:600;
-    padding:5px 10px;border-radius:8px;border:1px solid var(--line);
+    background:#EEF2F8;color:var(--blue-deep);font-size:11.5px;font-weight:600;
+    padding:4px 8px;border-radius:8px;border:1px solid var(--line);
   }
-  .no-equip{font-size:13px;color:var(--ink-soft);font-style:italic;margin:2px 0 12px;}
+  .no-equip{font-size:12.5px;color:var(--ink-soft);font-style:italic;margin:2px 0 8px;}
   .btn-row{display:flex;gap:8px;}
   .btn{
-    flex:1;padding:11px 8px;border-radius:10px;border:none;font-weight:700;font-size:13.5px;
+    flex:1;padding:9px 6px;border-radius:10px;border:none;font-weight:700;font-size:13px;
     cursor:pointer;font-family:'Inter',sans-serif;transition:.12s;
   }
   .btn:active{transform:scale(.97);}
@@ -129,11 +130,11 @@
   .btn-outline{background:#fff;color:var(--blue);border:1.5px solid var(--blue);}
   .btn-ghost{background:#F0F2F6;color:var(--ink);}
   .btn-danger-outline{background:#fff;color:var(--amber);border:1.5px solid var(--amber);}
-  .checked-time{font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;}
+  .checked-time{font-size:11px;color:var(--ink-soft);margin-bottom:6px;}
 
   .shop-item{
     display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);
-    border-radius:12px;padding:12px 14px;margin-bottom:8px;
+    border-radius:12px;padding:9px 12px;margin-bottom:6px;
   }
   .shop-icon{
     width:38px;height:38px;border-radius:9px;background:#EEF2F8;flex-shrink:0;
@@ -146,7 +147,7 @@
 
   .log-entry{
     display:flex;gap:11px;background:var(--card);border:1px solid var(--line);
-    border-radius:12px;padding:12px 14px;margin-bottom:8px;
+    border-radius:12px;padding:9px 12px;margin-bottom:6px;
   }
   .log-icon{
     width:32px;height:32px;border-radius:8px;background:#EEF2F8;flex-shrink:0;
@@ -558,19 +559,7 @@
     <div class="brand-row">
       <div class="brand-mark" id="brandMark">GJ</div>
       <div class="brand-text">
-        <div class="top">1-800-GOT-JUNK</div>
         <div class="main" id="locationTitle">Fleet Board</div>
-      </div>
-      <div class="header-menu-wrap" id="headerMenuWrap">
-        <button class="settings-btn" onclick="toggleHeaderMenu()" title="More options">▾</button>
-        <div class="header-menu" id="headerMenu">
-          <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('configure')">⚙ Configure Fleet</button>
-          <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('expenselocations')">💰 Expense Locations</button>
-          <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('spreadsheetlinks')">🔗 Spreadsheet Links</button>
-          <button class="header-menu-item admin-only-menu-item" onclick="headerMenuAction('passwords')">🔑 Passwords</button>
-          <button class="header-menu-item" onclick="headerMenuAction('log')">🧾 Log</button>
-          <button class="header-menu-item" onclick="headerMenuAction('switch')">↔ Switch Location</button>
-        </div>
       </div>
     </div>
     <div class="stat-strip">
@@ -585,7 +574,20 @@
     <button class="tab-btn active" data-tab="fleet">Fleet</button>
     <button class="tab-btn" data-tab="ops">EOD</button>
     <button class="tab-btn" data-tab="opstab">Ops</button>
-    <button class="tab-btn" data-tab="shop">Shop Inventory</button>
+    <div class="more-wrap" id="moreMenuWrap">
+      <button class="tab-btn" id="moreTabBtn" onclick="toggleMoreMenu()">More ▾</button>
+      <div class="more-menu" id="moreMenu">
+        <button class="more-menu-item" onclick="moreMenuAction('shop')">📦 Shop Inventory</button>
+        <div class="menu-divider"></div>
+        <button class="more-menu-item admin-only-menu-item" onclick="moreMenuAction('configure')">⚙ Configure Fleet</button>
+        <button class="more-menu-item admin-only-menu-item" onclick="moreMenuAction('expenselocations')">💰 Expense Locations</button>
+        <button class="more-menu-item admin-only-menu-item" onclick="moreMenuAction('spreadsheetlinks')">🔗 Spreadsheet Links</button>
+        <button class="more-menu-item admin-only-menu-item" onclick="moreMenuAction('passwords')">🔑 Passwords</button>
+        <div class="menu-divider admin-only-menu-item"></div>
+        <button class="more-menu-item" onclick="moreMenuAction('log')">🧾 Log</button>
+        <button class="more-menu-item" onclick="moreMenuAction('switch')">↔ Switch Location</button>
+      </div>
+    </div>
   </div>
 
   <main id="mainContent">
@@ -1710,11 +1712,24 @@ function opsCard(t){
   </div>`;
 }
 
-document.querySelectorAll('.tab-btn').forEach(btn=>{
+// Highlights the right tab button. Shop Inventory and Log live under the
+// "More" menu, so when either is showing, the More button itself is the
+// active one (and says which, e.g. "Shop ▾") rather than leaving nothing lit.
+function setActiveTabButton(tab){
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.tab===tab);
+  });
+  const moreBtn = document.getElementById('moreTabBtn');
+  const inMore = (tab==='shop' || tab==='log');
+  moreBtn.classList.toggle('active', inMore);
+  moreBtn.textContent = (tab==='shop' ? 'Shop' : tab==='log' ? 'Log' : 'More') + ' ▾';
+}
+
+document.querySelectorAll('.tab-btn[data-tab]').forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
+    closeMoreMenu();
     activeTab = btn.dataset.tab;
+    setActiveTabButton(activeTab);
     render();
   });
 });
@@ -3597,18 +3612,20 @@ async function switchLocation(){
   location.reload();
 }
 
-/* Header dropdown menu */
-function toggleHeaderMenu(){
-  document.getElementById('headerMenu').classList.toggle('show');
+/* "More" tab dropdown menu (Shop Inventory + everything that used to live
+   in the header's settings menu) */
+function toggleMoreMenu(){
+  document.getElementById('moreMenu').classList.toggle('show');
 }
 
-function closeHeaderMenu(){
-  document.getElementById('headerMenu').classList.remove('show');
+function closeMoreMenu(){
+  document.getElementById('moreMenu').classList.remove('show');
 }
 
-function headerMenuAction(action){
-  closeHeaderMenu();
-  if(action==='configure') openManage();
+function moreMenuAction(action){
+  closeMoreMenu();
+  if(action==='shop'){ activeTab = 'shop'; setActiveTabButton('shop'); render(); }
+  else if(action==='configure') openManage();
   else if(action==='switch') switchLocation();
   else if(action==='log') openLogTab();
   else if(action==='passwords') openPasswords();
@@ -3618,7 +3635,7 @@ function headerMenuAction(action){
 
 function openLogTab(){
   activeTab = 'log';
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  setActiveTabButton('log');
   render();
 }
 
@@ -3660,8 +3677,8 @@ async function resetPassword(role){
 }
 
 document.addEventListener('click', (e)=>{
-  const wrap = document.getElementById('headerMenuWrap');
-  const menu = document.getElementById('headerMenu');
+  const wrap = document.getElementById('moreMenuWrap');
+  const menu = document.getElementById('moreMenu');
   if(menu.classList.contains('show') && wrap && !wrap.contains(e.target)){
     menu.classList.remove('show');
   }
