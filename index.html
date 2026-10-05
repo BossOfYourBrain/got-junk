@@ -269,6 +269,17 @@
     font-size:12.5px;font-weight:700;color:var(--ink-soft);cursor:pointer;text-align:center;
   }
   .fullness-pill.selected{border-color:var(--blue);background:#EEF4FC;color:var(--blue);}
+  .caution-toggle{
+    display:flex;align-items:center;gap:10px;width:100%;margin-top:8px;padding:10px 12px;
+    border-radius:10px;border:1.5px solid var(--line);background:#fff;color:var(--ink-soft);
+    font-family:'Inter',sans-serif;cursor:pointer;text-align:left;
+  }
+  .caution-toggle .ct-icon{font-size:20px;line-height:1;flex-shrink:0;filter:grayscale(1);opacity:.55;}
+  .caution-toggle .ct-title{font-size:13px;font-weight:700;display:block;}
+  .caution-toggle .ct-sub{font-size:11px;font-weight:500;display:block;margin-top:1px;}
+  .caution-toggle .ct-state{margin-left:auto;flex-shrink:0;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;}
+  .caution-toggle.on{border-color:var(--red);background:var(--red-soft);color:var(--red);}
+  .caution-toggle.on .ct-icon{filter:none;opacity:1;}
   .checklist-grid{display:flex;flex-wrap:wrap;gap:8px;}
   .checklist-more-btn{
     display:block;margin-top:10px;background:none;border:none;color:var(--blue);
@@ -322,6 +333,18 @@
   .ops-chip{background:#EEF2F8;color:var(--blue-deep);font-size:10px;font-weight:700;padding:3px 7px;border-radius:6px;}
   .ops-sub{font-size:10.5px;color:var(--ink-soft);}
   .ops-empty{font-size:12px;color:var(--ink-soft);font-style:italic;padding:6px 0;}
+  .ops-caution-flag{
+    font-size:11px;font-weight:700;color:var(--red);background:var(--red-soft);
+    padding:5px 8px;border-radius:8px;display:flex;align-items:center;gap:4px;line-height:1.3;
+  }
+  .ops-notes{
+    font-size:12px;color:var(--ink);background:#F7F8FB;border:1px solid var(--line);
+    padding:6px 8px;border-radius:8px;line-height:1.4;white-space:pre-wrap;word-break:break-word;
+  }
+  .avail-caution{
+    font-size:12px;font-weight:700;color:var(--red);background:var(--red-soft);
+    padding:7px 10px;border-radius:9px;margin-bottom:8px;line-height:1.3;
+  }
   .ops-problem-flag{font-size:11px;font-weight:700;color:var(--red);display:flex;align-items:center;gap:4px;}
   .ops-btn-row{display:flex;gap:6px;margin-top:4px;}
   .ops-edit-btn{
@@ -758,10 +781,22 @@
     <div class="field">
       <label>How full is the truck?</label>
       <div class="fullness-row" id="fullnessRow"></div>
+      <button type="button" class="caution-toggle" id="cautionToggle" onclick="toggleCaution()">
+        <span class="ct-icon">⚠️</span>
+        <span>
+          <span class="ct-title">Caution when opening</span>
+          <span class="ct-sub">Packed full — items may fall out</span>
+        </span>
+        <span class="ct-state" id="cautionState">Off</span>
+      </button>
     </div>
     <div class="field">
       <label>What's in the load? (select all that apply)</label>
       <div id="checklistGrid"></div>
+    </div>
+    <div class="field">
+      <label>Special notes (optional)</label>
+      <textarea id="specialNotesInput" placeholder="e.g. Metal sorted on the left, wood on the right. Propane tank hidden behind the couch."></textarea>
     </div>
     <div class="field">
       <label>Photo of the junk (required)</label>
@@ -991,6 +1026,7 @@ let selectedAddEquip = new Set();
 let problemTruckId = null;
 let checkInTruckId = null;
 let selectedFullness = null;
+let selectedCaution = false;
 let selectedChecklist = new Set();
 let pendingEodPhoto = null;
 let pendingEodPhotoUploadPromise = null;
@@ -1404,6 +1440,7 @@ function truckCardAvailable(t){
       <span class="pill avail">Available</span>
     </div>
     <div class="truck-body">
+      ${(t.lastEod && t.lastEod.cautionOpen) ? `<div class="avail-caution">⚠️ Caution opening — packed, items may fall out</div>` : ''}
       ${problemBlock(t)}
       <div class="btn-row">
         <button class="btn btn-primary" onclick="openCheckout(${t.id})">Check out Truck ${t.id}</button>
@@ -1698,10 +1735,12 @@ function opsCard(t){
       ${statusPill}
     </div>
     <span class="ops-fullness ${fullnessBand(eod.fullness)}">${eod.fullness}</span>
+    ${eod.cautionOpen ? `<div class="ops-caution-flag">⚠️ Caution opening — packed, items may fall out</div>` : ''}
     ${problemFlag}
     ${missingFlag}
     ${photo}
     <div class="ops-chips">${chips}</div>
+    ${eod.specialNotes ? `<div class="ops-notes">📝 ${escapeHtml(eod.specialNotes)}</div>` : ''}
     <div class="ops-sub">${crewLabel(eod.submittedBy, eod.passenger)||'Unknown'} · ${dateTimeShort(eod.submittedAt)}</div>
     ${editedNote}
     <div class="ops-btn-row">
@@ -2001,6 +2040,9 @@ function openCheckIn(truckId){
   checkInTruckId = truckId;
   eodEditMode = false;
   selectedFullness = null;
+  selectedCaution = false;
+  updateCautionToggle();
+  document.getElementById('specialNotesInput').value = '';
   selectedChecklist = new Set();
   pendingEodPhoto = null;
   pendingEodPhotoUploadPromise = null;
@@ -2050,6 +2092,16 @@ function setEquipReturnStatus(itemId, status){
   }
   const anyMissing = Array.from(selectedEquipStatus.values()).some(v=>v==='missing');
   document.getElementById('missingNotesField').style.display = anyMissing ? 'block' : 'none';
+}
+
+function updateCautionToggle(){
+  document.getElementById('cautionToggle').classList.toggle('on', selectedCaution);
+  document.getElementById('cautionState').textContent = selectedCaution ? 'On' : 'Off';
+}
+
+function toggleCaution(){
+  selectedCaution = !selectedCaution;
+  updateCautionToggle();
 }
 
 function selectFullness(level){
@@ -2425,6 +2477,7 @@ async function submitCheckIn(){
   }
 
   const missingNote = document.getElementById('missingNotesInput').value.trim() || null;
+  const specialNotes = document.getElementById('specialNotesInput').value.trim() || null;
   const returned = [];
   const returnedIds = [];
   const missing = [];
@@ -2473,6 +2526,8 @@ async function submitCheckIn(){
     missingItems: missing,
     equipmentManifest: manifest,
     missingNote: missingNote,
+    cautionOpen: selectedCaution,
+    specialNotes: specialNotes,
     lastEditedBy: null,
     lastEditedAt: null
   };
@@ -2482,6 +2537,7 @@ async function submitCheckIn(){
   truck.checkedOutAt = null;
 
   let logMsg = `Truck ${checkInTruckId} checked in by ${driverName} — ${selectedFullness} full`;
+  if(selectedCaution) logMsg += ` — ⚠️ caution opening`;
   if(returned.length) logMsg += ` — returned ${returned.join(', ')}`;
   if(missing.length) logMsg += ` — missing ${missing.join(', ')}${missingNote?' ("'+missingNote+'")':''}`;
   if(issues.length) logMsg += ` — issue: ${issues.join('; ')}`;
@@ -3062,6 +3118,9 @@ function openEodEdit(truckId){
   checkInTruckId = truckId;
   eodEditMode = true;
   selectedFullness = eod.fullness;
+  selectedCaution = !!eod.cautionOpen;
+  updateCautionToggle();
+  document.getElementById('specialNotesInput').value = eod.specialNotes || '';
   selectedChecklist = new Set(eod.checklist || []);
   pendingEodPhoto = eod.photo || null;
   pendingEodPhotoUploadPromise = null;
@@ -3133,6 +3192,7 @@ async function submitEodEdit(truck){
   const editedBy = titleCase(editedByField.name || '');
   if(!editedBy){ showToast('Choose or enter who made this edit'); return; }
   const missingNote = document.getElementById('missingNotesInput').value.trim() || null;
+  const specialNotes = document.getElementById('specialNotesInput').value.trim() || null;
   const now = new Date().toISOString();
   const crew = editedBy;
 
@@ -3198,12 +3258,15 @@ async function submitEodEdit(truck){
     equipmentManifest: newManifest,
     missingItems: newManifest.filter(m=>m.status==='missing').map(m=>m.name),
     missingNote: missingNote,
+    cautionOpen: selectedCaution,
+    specialNotes: specialNotes,
     lastEditedBy: editedBy,
     lastEditedByEmpNumber: editedByField.empNumber,
     lastEditedAt: now
   };
 
   let logMsg = `Truck ${checkInTruckId} end-of-day edited by ${editedBy} — ${selectedFullness} full`;
+  if(selectedCaution) logMsg += ` — ⚠️ caution opening`;
   if(missingNames.length) logMsg += ` — missing ${missingNames.join(', ')}`;
   if(issueNames.length) logMsg += ` — issue: ${issueNames.join('; ')}`;
   if(changedButSkipped.length) logMsg += ` (couldn't update ${changedButSkipped.join(', ')} — already back in use)`;
